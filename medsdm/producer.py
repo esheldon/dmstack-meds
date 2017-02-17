@@ -60,7 +60,7 @@ class LSSTProducer(object):
         result = []
         for source in meas:
             count, width = self.getSourceBBox(source)
-            result.append((source.getId(), count, width, width))
+            result.append((source.getId(), count, width, source.getCoord()))
         return result
 
     def makeDataId(self, ccdRecord):
@@ -95,7 +95,8 @@ class LSSTProducer(object):
                 fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)
             else:
                 fullStamp = None
-            stamps.append(fullStamp)
+            position = ccdRecord.getWcs().skyToPixel(source.getCoord())
+            stamps.append((fullStamp, position))
         return stamps
 
 def test():
