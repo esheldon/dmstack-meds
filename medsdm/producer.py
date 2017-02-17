@@ -3,6 +3,17 @@ import lsst.afw.image as afwImage
 
 
 class LSSTProducer(object):
+    """Class to help make MEDS files from LSST DM stack outputs.
+
+    Usage:
+
+     - Construct an instance of the class, corresponding to a single coadd patch.
+     - Call makeCatalog to get a list of tuples of (source_id, num_epochs, width).
+     - Call loadImages to load all of the CCD-level images into memory.
+     - Call makeStamps on each (source_id, num_epochs, width) returned by makeCatalog
+       to get list of postage stamp Exposure objects that contain all the information
+       we need about that postage stamp.
+    """
 
     def __init__(self, butler, tract, patch, filter):
         self.butler = butler
@@ -25,17 +36,16 @@ class LSSTProducer(object):
     def getSourceBBox(self, source):
         count = 0
         maxWidth = 0
-        maxHeight = 0
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
             count += 1
-            maxWidth = max(maxWidth, fp.getBBox().getWidth())
-            maxHeight = max(maxHeight, fp.getBBox().getHeight())
-        return count, maxWidth, maxHeight
+            maxWidth = max(maxWidth, footprint.getBBox().getWidth())
+            maxWidth = max(maxWidth, footprint.getBBox().getHeight())
+        return count, maxWidth
 
     def makeCatalog(self):
         result = []
-        for src in self.meas:
-            count, width, height = self.getSourceBBox(source)
+        for source in self.meas:
+            count, width = self.getSourceBBox(source)
             result.append((source.getId(), count, width, height))
         return result
 
@@ -52,12 +62,12 @@ class LSSTProducer(object):
         for ccdRecord in self.ccds:
             self.calexp[ccdRecord.getId()] = self.butler.get("calexp", self.makeDataId(ccdRecord))
 
-    def makeStamps(self, sourceId, count, width, height):
+    def makeStamps(self, sourceId, count, width):
         source = self.meas.find(sourceId)  # find src record by ID
         stamps = []
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
             calexp = self.calexps(ccdRecord.getId())
-            fullBBox = afwGeom.Box2I(footprint.getBBox().getMin(), width, height)
+            fullBBox = afwGeom.Box2I(footprint.getBBox().getMin(), width, width)
             if calexp.getBBox().contains(fullBBox):
                 fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)
             else:
