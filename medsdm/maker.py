@@ -54,58 +54,41 @@ class DMMedsMaker(meds.MEDSMaker):
 
             self._reserve_mosaic_images()
 
-            # DM may not split things up this way; may get
-            # everything for an object at once, so we would
-            # write all cutout types at once for a given
-            # object.
-            for type in self['cutout_types']:
-                self._write_cutouts(type, producer)
+            for iobj,obj in enumerate(producer):
+                self._write_object_cutouts(iobj,obj)
 
         print('output is in:',filename)
 
-    def _write_cutouts(self, cutout_type, producer):
+    def _write_object_cutouts(self, iobj, obj):
         """
         write the cutouts for the specified type
         """
 
-        # here is where we will unpack the data from DM
-        return
-
-        print('writing %s cutouts' % cutout_type)
-
         obj_data=self.obj_data
-
-        nfile=self.image_info.size
         nobj=obj_data.size
+        assert iobj < nobj
 
-        cutout_hdu = self._get_cutout_hdu(cutout_type)
+        for cutout_type in self['cutout_types']:
+            print('%d: writing %s cutouts' % (iobj,cutout_type))
 
-        for file_id in xrange(nfile):
+            cutout_hdu = self._get_cutout_hdu(cutout_type)
 
-            pkey   = '%s_path' % cutout_type
-            impath = self.image_info[pkey][file_id].strip()
+            obs_list = self._extract_images(obj, cutout_type)
 
-            print('    %d/%d %s %s' % (file_id+1,nfile,cutout_type,impath))
+            ncut =len(obs_list)
+            nexp = obj_data['ncutout'][iobj]
+            if ncut != nexp:
+                raise ValueError("expected %d cutouts, got %d" % (nexp,ncut))
 
-            im_data = self._read_image(file_id, cutout_type)
-
-            if im_data is None:
-                print('    no %s specified for file' % cutout_type)
-                continue
-
-            for iobj in xrange(nobj):
-                ncut=obj_data['ncutout'][iobj]
-
-                for icut in xrange(ncut):
-                    if obj_data['file_id'][iobj, icut] == file_id:
-
-                        self._write_cutout(
-                            iobj,
-                            icut,
-                            cutout_hdu,
-                            im_data,
-                            cutout_type,
-                        )
+            for icut, im_data in obs_list:
+                image = imdata # some unpacking needs to be done here
+                self._write_cutout(
+                    iobj,
+                    icut,
+                    cutout_hdu,
+                    im_data,
+                    cutout_type,
+                )
 
 def make_test_image_info():
     return numpy.zeros(10, dtype=[('dummy','i4')])
@@ -181,6 +164,9 @@ def test():
     # dummy variable
     producer={}
     maker.write("test.fits", producer)
+
+def test_producer():
+    pass
 
 if __name__=="__main__":
     test()
