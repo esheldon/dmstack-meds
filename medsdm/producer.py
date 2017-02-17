@@ -43,9 +43,22 @@ class LSSTProducer(object):
             maxWidth = max(maxWidth, footprint.getBBox().getHeight())
         return count, maxWidth
 
-    def makeCatalog(self):
+    def makeCatalog(self, limit=None):
+        """Return a list of tuples of (id, num_epochs, stamp_width) for all
+        objects in the coadd patch.
+
+        If `limit` is not None, only tuples for that many objects will be
+        returned.  The objects are selected from near the middle of the
+        catalog to avoid just returning garbage on the edge.
+        """
+        if limit is None:
+            meas = self.meas
+        else:
+            start = len(self.meas)//2 - limit//2
+            stop = start + limit
+            meas = meas[start:stop]
         result = []
-        for source in self.meas:
+        for source in meas:
             count, width = self.getSourceBBox(source)
             result.append((source.getId(), count, width, width))
         return result
