@@ -1,3 +1,18 @@
+"""
+TODO: 
+
+    - deal with fullStamp going off image, stamps going off edge
+    - scale images
+    - seg maps
+    - include coadd image
+
+    - make sure stamps are the same size in every band
+
+    - write the images to MEDS (easy)
+"""
+
+from __future__ import print_function
+
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
@@ -79,8 +94,6 @@ class LSSTProducer(object):
 
     def makeStamps(self, sourceId, count, width):
         """
-        TODO: remove count
-              deal with fullStamp going off image
         """
         source = self.meas.find(sourceId)  # find src record by ID
         stamps = []
@@ -142,6 +155,7 @@ def test():
     # this will be in arcsec
     wcs = stamp.getWcs().linearizePixelToSky(pos, afwGeom.arcseconds)
     jacobian = wcs.getLinear().getMatrix()
+    print("jacobian:",jacobian)
 
     psfobj=stamp.getPsf()
 
