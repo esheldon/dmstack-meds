@@ -9,6 +9,8 @@ TODO:
     - make sure stamps are the same size in every band
 
     - write the images to MEDS (easy)
+
+    - make sure we agree on coordinate conventions
 """
 
 from __future__ import print_function
