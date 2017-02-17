@@ -1,6 +1,12 @@
+import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 
+def test :
+    butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc")
+    tract = 0
+    patch = "1,4"
+    filter = "r"
 
 class LSSTProducer(object):
     """Class to help make MEDS files from LSST DM stack outputs.
