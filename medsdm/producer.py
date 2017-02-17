@@ -63,10 +63,14 @@ class LSSTProducer(object):
             self.calexp[ccdRecord.getId()] = self.butler.get("calexp", self.makeDataId(ccdRecord))
 
     def makeStamps(self, sourceId, count, width):
+        """
+        TODO: remove count
+              deal with fullStamp going off image
+        """
         source = self.meas.find(sourceId)  # find src record by ID
         stamps = []
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
-            calexp = self.calexps(ccdRecord.getId())
+            calexp = self.calexps[ccdRecord.getId()]
             fullBBox = afwGeom.Box2I(footprint.getBBox().getMin(), width, width)
             if calexp.getBBox().contains(fullBBox):
                 fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)

@@ -166,7 +166,18 @@ def test():
     maker.write("test.fits", producer)
 
 def test_producer():
+    """
+    """
     pass
+    
+    # create the producer
+
+    # make a catalog
+
+    # copy info into numpy array
+
+    # learn how to extract image info
+
 
 if __name__=="__main__":
     test()
