@@ -54,6 +54,10 @@ class DMMedsMaker(meds.MEDSMaker):
 
             self._reserve_mosaic_images()
 
+            # DM may not split things up this way; may get
+            # everything for an object at once, so we would
+            # write all cutout types at once for a given
+            # object.
             for type in self['cutout_types']:
                 self._write_cutouts(type, producer)
 
@@ -64,7 +68,9 @@ class DMMedsMaker(meds.MEDSMaker):
         write the cutouts for the specified type
         """
 
+        # here is where we will unpack the data from DM
         return
+
         print('writing %s cutouts' % cutout_type)
 
         obj_data=self.obj_data
