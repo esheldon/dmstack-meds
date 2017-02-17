@@ -185,6 +185,12 @@ def test_producer():
         filter,
     )
     
+    arr=stamp.getMaskedImage().getImage().getArray()
+    var=stamp.getMaskedImage().getVariance().getArray()
+    mask=stamp.getMaskedImage().getMask().getArray()
+    psfobj=stamp.getPsf()
+    psfim = psfobj.computeKernelImage(pos1, pos2)
+
     pass
     
     # create the producer

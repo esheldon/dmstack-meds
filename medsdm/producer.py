@@ -56,11 +56,11 @@ class LSSTProducer(object):
         else:
             start = len(self.meas)//2 - limit//2
             stop = start + limit
-            meas = meas[start:stop]
+            meas = self.meas[start:stop]
         result = []
         for source in meas:
             count, width = self.getSourceBBox(source)
-            result.append((source.getId(), count, width, width))
+            result.append((source.getId(), count, width))
         return result
 
     def makeDataId(self, ccdRecord):
@@ -115,6 +115,20 @@ def test():
         patch,
         filter,
     )
+
+    cat = producer.makeCatalog(limit=10)
+    producer.loadImages()
+
+    objdata = cat[1]
+    stamps = producer.getStamps(*objdata)
+
+    arr=stamp.getMaskedImage().getImage().getArray()
+    var=stamp.getMaskedImage().getVariance().getArray()
+    mask=stamp.getMaskedImage().getMask().getArray()
+    psfobj=stamp.getPsf()
+    psfim = psfobj.computeKernelImage(pos1, pos2)
+
+
 
     return producer
  
