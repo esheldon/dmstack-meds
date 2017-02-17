@@ -60,7 +60,8 @@ class LSSTProducer(object):
         result = []
         for source in meas:
             count, width = self.getSourceBBox(source)
-            result.append((source.getId(), count, width))
+            result.append((source.getId(), count, width, source.getCoord()))
+
         return result
 
     def makeDataId(self, ccdRecord):
@@ -95,7 +96,8 @@ class LSSTProducer(object):
                 fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)
             else:
                 fullStamp = None
-            stamps.append(fullStamp)
+            position = ccdRecord.getWcs().skyToPixel(source.getCoord())
+            stamps.append((fullStamp, position))
         return stamps
 
 def test():
@@ -120,15 +122,29 @@ def test():
     producer.loadImages()
 
     objdata = cat[1]
-    stamps = producer.getStamps(*objdata)
+    skycoord = objdata[3]
+    ra = skycoord.getRa().asDegrees()
+    dec = skycoord.getDec().asDegrees()
+
+    stamps = producer.makeStamps(objdata[0], objdata[1], objdata[2])
+    stamp, pos = stamps[1]
 
     arr=stamp.getMaskedImage().getImage().getArray()
     var=stamp.getMaskedImage().getVariance().getArray()
     mask=stamp.getMaskedImage().getMask().getArray()
+
+    # this will be in arcsec
+    wcs = stamp.getWcs().linearizePixelToSky(pos, afwGeom.arcseconds)
+    jacobian = wcs.getLinear().getMatrix()
+
     psfobj=stamp.getPsf()
-    psfim = psfobj.computeKernelImage(pos1, pos2)
 
+    psfim = psfobj.computeKernelImage(pos).getArray()
 
+    cutout_cen = pos - stamp.getXY0()
+
+    row = cutout_cen.getY()
+    col = cutout_cen.getX()
 
     return producer
  
