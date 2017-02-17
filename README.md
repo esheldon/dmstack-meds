@@ -1,2 +1,3 @@
-# dmstack-meds
-Code to create MEDS files from a dmstack interface
+# medsdm
+
+Code to create MEDS files from a LSST dmstack interface
