@@ -2,11 +2,6 @@ import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 
-def test :
-    butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc")
-    tract = 0
-    patch = "1,4"
-    filter = "r"
 
 class LSSTProducer(object):
     """Class to help make MEDS files from LSST DM stack outputs.
@@ -24,7 +19,7 @@ class LSSTProducer(object):
     def __init__(self, butler, tract, patch, filter):
         self.butler = butler
         self.meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
-        self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
+        self.coadds = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadds.getInfo().getCoaddInputs().ccds
 
     def getOverlappingEpochs(self, source):
@@ -32,7 +27,7 @@ class LSSTProducer(object):
             if ccdRecord.contains(source.getCoord()):
                 # get object footprint on the calexp
                 fp = source.getFootprint().transform(
-                    self.coadd.getWcs(),
+                    self.coadds.getWcs(),
                     ccdRecord.getWcs(),
                     ccdRecord.getBBox()
                 )
@@ -52,7 +47,7 @@ class LSSTProducer(object):
         result = []
         for source in self.meas:
             count, width = self.getSourceBBox(source)
-            result.append((source.getId(), count, width, height))
+            result.append((source.getId(), count, width, width))
         return result
 
     def makeDataId(self, ccdRecord):
@@ -66,7 +61,7 @@ class LSSTProducer(object):
     def loadImages(self):
         self.calexps = {}
         for ccdRecord in self.ccds:
-            self.calexp[ccdRecord.getId()] = self.butler.get("calexp", self.makeDataId(ccdRecord))
+            self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.makeDataId(ccdRecord))
 
     def makeStamps(self, sourceId, count, width):
         """
@@ -77,10 +72,36 @@ class LSSTProducer(object):
         stamps = []
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
             calexp = self.calexps[ccdRecord.getId()]
-            fullBBox = afwGeom.Box2I(footprint.getBBox().getMin(), width, width)
+
+            extent = afwGeom.Extent2I(width, width)
+            fullBBox = afwGeom.Box2I(
+                footprint.getBBox().getMin(), 
+                extent,
+            )
             if calexp.getBBox().contains(fullBBox):
                 fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)
             else:
                 fullStamp = None
             stamps.append(fullStamp)
         return stamps
+
+def test():
+    """
+    test making a producer
+    """
+
+    butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc/")
+
+    tract = 0
+    patch = "1,4"
+    filter = "r"
+
+    producer = LSSTProducer(
+        butler,
+        tract,
+        patch,
+        filter,
+    )
+
+    return producer
+ 

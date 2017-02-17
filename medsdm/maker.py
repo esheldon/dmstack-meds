@@ -168,6 +168,23 @@ def test():
 def test_producer():
     """
     """
+    from .producer import LSSTProducer
+    import lsst.daf.persistence as dafPersist
+
+    bpath="/u/ki/boutigny/ki19/MACSJ2243/output/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc"
+
+    butler = dafPersist.Butler(bpath)
+    tract = 0
+    patch = "1,4"
+    filter = "r"
+
+    producer = LSSTProducer(
+        butler,
+        tract,
+        patch,
+        filter,
+    )
+    
     pass
     
     # create the producer
