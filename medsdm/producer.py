@@ -100,11 +100,8 @@ class LSSTProducer(object):
             stamps.append((fullStamp, position))
         return stamps
 
-def test():
-    """
-    test making a producer
-    """
 
+def test_make_producer():
     butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc/")
 
     tract = 0
@@ -117,6 +114,15 @@ def test():
         patch,
         filter,
     )
+
+    return producer
+
+def test():
+    """
+    test making a producer
+    """
+
+    producer = test_make_producer()
 
     cat = producer.makeCatalog(limit=10)
     producer.loadImages()
