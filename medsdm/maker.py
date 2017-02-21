@@ -111,11 +111,10 @@ class DMMedsMaker(meds.MEDSMaker):
             cutout_hdu = self._get_cutout_hdu(cutout_type)
 
             for icut, idata in enumerate(image_data):
-                print("    icut:",icut)
                 stamp, orig_pos = idata
 
                 if stamp is None:
-                    print("    warning: stamp is None")
+                    print("    stamp",icut,"is None")
                     continue
 
                 im_data = self._extract_image(stamp, cutout_type, obj_data['box_size'][iobj])

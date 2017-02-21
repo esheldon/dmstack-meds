@@ -108,6 +108,8 @@ class LSSTProducer(object):
 
     def makeCatalog(self):
         """
+        For now, set arbitrary min of 32x32 box size
+
         Make the catalog for all objects in the coadd patch.
 
         If `limit` was set in construction, only that many objects will be
@@ -139,6 +141,10 @@ class LSSTProducer(object):
             data['dec'][i] = coord.getDec().asDegrees()
             data['ncutout'][i]  = objdata[1]
 
+        w,=numpy.where(data['box_size'] < 32)
+        if w.size > 0:
+            data['box_size'][w] = 32
+
         self.catalog=data
 
     def getDataId(self, ccdRecord):
@@ -156,6 +162,10 @@ class LSSTProducer(object):
 
     def getStamps(self, obj_data):
         """
+        TODO
+
+        Currently calexp.getBBox().contains(fullBBox) is checked which returns
+        False if the full stamp is not contained
         """
         source = self.meas.find(obj_data['id'])  # find src record by ID
         stamps = []
