@@ -5,26 +5,25 @@ TODO:
     - seg maps
 
     - deal with fullStamp going off image, stamps going off edge
-        - set weight==0 and some bitmask for missing pixels off edge
+        - should just fill in part of the stamp
+        - currently not writing anything
+            - set weight==0 and some bitmask for missing pixels off edge
 
-    - set weight map zero for correct bitmask
-
-    - scale the images to common zero point
-
+    - stamps too small, resize to "5-sigma"
     - make sure stamps are the same size in every band
 
+    - set weight map zero for bad bits in bitmask
+    - scale the images to common zero point
     - write the images to MEDS (easy)
 
     - make sure we agree on coordinate conventions
-    - are images background subtracted?
 
 
 BUGS found in dmstack
 
+    - trying to import test.py, which means we can't have a test.py in our cwd!
     - tries to connect to display, causing crash
     - installation instructions wrong: location of eups-setups.sh
-    - future is trying to import test.py  can't have a test.py
-    in our cwd!
 
 """
 

@@ -30,6 +30,8 @@ class DMMedsMaker(meds.MEDSMaker):
         self._set_meta_data(meta_data)
 
         self.producer = producer
+
+        print("    getting the catalog")
         obj_data = self.producer.getCatalog()
         self._set_obj_data(obj_data)
 
@@ -65,7 +67,7 @@ class DMMedsMaker(meds.MEDSMaker):
         for each image
         """
 
-        print("opening output MEDS file: '%s'" % filename)
+        print("    opening output MEDS file: '%s'" % filename)
 
         with fitsio.FITS(filename,'rw',clobber=True) as fits:
             self.fits=fits
@@ -82,7 +84,7 @@ class DMMedsMaker(meds.MEDSMaker):
             self._write_image_info()
             self._write_metadata()
 
-        print('output is in:',filename)
+        print('    output is in:',filename)
 
     def _write_object_cutouts(self, iobj):
         """
@@ -105,13 +107,17 @@ class DMMedsMaker(meds.MEDSMaker):
 
         # write image data
         for cutout_type in self['cutout_types']:
-            print('%d: writing %s cutouts' % (iobj,cutout_type))
+            print('    %d: writing %s cutouts' % (iobj,cutout_type))
 
             cutout_hdu = self._get_cutout_hdu(cutout_type)
 
             for icut, idata in enumerate(image_data):
                 print("    icut:",icut)
                 stamp, orig_pos = idata
+
+                if stamp is None:
+                    print("    warning: stamp is None")
+                    continue
 
                 im_data = self._extract_image(stamp, cutout_type, obj_data['box_size'][iobj])
 
@@ -175,6 +181,8 @@ class DMMedsMaker(meds.MEDSMaker):
         obj_data=self.obj_data
         for icut,idata in enumerate(image_data):
             stamp, orig_pos = idata
+            if stamp is None:
+                continue
 
             wcs = stamp.getWcs().linearizePixelToSky(
                 orig_pos,
@@ -289,9 +297,9 @@ def make_test_obj_data(image_info):
 
     return data
 
-def test():
+def test(limit=10):
     from .producer import test_make_producer
-    producer = test_make_producer(limit=10)
+    producer = test_make_producer(limit=limit)
 
     config={
         'cutout_types':['image','weight','bmask'],
