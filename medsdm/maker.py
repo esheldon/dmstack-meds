@@ -12,10 +12,8 @@ from .defaults import default_config
 
 class DMMedsMaker(meds.MEDSMaker):
     """
-    - check box sizes are 2^N 3*2^N ?
-    - we don't have access to files
-    - so the image_info will currently be blank
-    - need scale to put all on same zero point, if not already done
+    Wrapper class for the meds.MEDSMaker to adapt
+    outputs from the LSST dmstack
     """
 
     def __init__(self,
@@ -41,6 +39,14 @@ class DMMedsMaker(meds.MEDSMaker):
             10,
         )
 
+    def write(self, filename):
+        """
+        build the meds layout and write images from
+        the producer
+        """
+        self._build_meds_layout()
+        self._write_data(filename)
+
     def _build_meds_layout(self):
         """
         This fudges some things for now
@@ -53,13 +59,6 @@ class DMMedsMaker(meds.MEDSMaker):
         #self.obj_data = self._make_resized_data(obj_data)
         self._set_start_rows_and_pixel_count()
 
-    def write(self, filename):
-        """
-        build the meds layout and write images from
-        the producer
-        """
-        self._build_meds_layout()
-        self._write_data(filename)
 
     def _write_data(self, filename):
         """
@@ -255,47 +254,6 @@ class DMMedsMaker(meds.MEDSMaker):
 
         # first load the defaults from the parent
         super(DMMedsMaker,self)._load_config(this_config)
-
-
-def make_test_image_info():
-    # this will set ncutout_max
-    return numpy.zeros(10, dtype=[('dummy','i4')])
-
-def make_test_obj_data(image_info):
-    n=10
-    ncutout=10
-    ncutout_max=image_info.size
-
-    box_size=48
-    pixscale=0.2
-
-    extra_fields=[('number','i8')]
-    data = meds.util.get_meds_output_struct(
-        n,
-        ncutout_max,
-        extra_fields=extra_fields,
-    )
-
-    data['id'] = numpy.arange(n)
-    data['number'] = data['id']
-    data['ra'] = 200.0
-    data['dec'] = -15.0
-    data['box_size'] = -9999 # to be filled i
-
-    for n in ['file_id','start_row',
-              'orig_row','orig_col',
-              'orig_start_row','orig_start_col']:
-        data[n] = -9999
-
-    data['ncutout'] = 10
-    data['dudcol'] = pixscale
-    data['dvdrow'] = pixscale
-
-    for i in xrange(data.size):
-        data['cutout_row'][i,:] = (box_size-1.0)/2.0
-        data['cutout_col'][i,:] = (box_size-1.0)/2.0
-
-    return data
 
 def test(limit=10):
     from .producer import test_make_producer
