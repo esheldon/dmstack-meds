@@ -9,7 +9,7 @@ TODO:
         - currently not writing anything
             - set weight==0 and some bitmask for missing pixels off edge
 
-    - stamps too small, resize to "5-sigma"
+    - stamps too small, resize to "5-sigma", round to 2^N or 3*2^N
     - make sure stamps are the same size in every band
 
     - set weight map zero for bad bits in bitmask
