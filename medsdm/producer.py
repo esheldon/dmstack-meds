@@ -1,19 +1,35 @@
 """
 TODO: 
 
-    - deal with fullStamp going off image, stamps going off edge
-    - scale images
-    - seg maps
     - include coadd image
+    - seg maps
+
+    - deal with fullStamp going off image, stamps going off edge
+        - set weight==0 and some bitmask for missing pixels off edge
+
+    - set weight map zero for correct bitmask
+
+    - scale the images to common zero point
 
     - make sure stamps are the same size in every band
 
     - write the images to MEDS (easy)
 
     - make sure we agree on coordinate conventions
+    - are images background subtracted?
+
+
+BUGS found in dmstack
+
+    - tries to connect to display, causing crash
+    - installation instructions wrong: location of eups-setups.sh
+    - future is trying to import test.py  can't have a test.py
+    in our cwd!
+
 """
 
 from __future__ import print_function
+import numpy
 
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
@@ -21,25 +37,34 @@ import lsst.afw.image as afwImage
 
 
 class LSSTProducer(object):
-    """Class to help make MEDS files from LSST DM stack outputs.
+    """
+    Class to help make MEDS files from LSST DM stack outputs.
 
     Usage:
 
      - Construct an instance of the class, corresponding to a single coadd patch.
-     - Call makeCatalog to get a list of tuples of (source_id, num_epochs, width).
-     - Call loadImages to load all of the CCD-level images into memory.
-     - Call makeStamps on each (source_id, num_epochs, width) returned by makeCatalog
+     - Call getCatalog to get information about each object
+     - Call getStamps on each source returned by getCatalog
        to get list of postage stamp Exposure objects that contain all the information
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter):
+    def __init__(self, butler, tract, patch, filter, limit=None):
         self.butler = butler
         self.meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
         self.coadds = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadds.getInfo().getCoaddInputs().ccds
 
+        self.limit=limit
+
+        self.loadImages()
+
     def getOverlappingEpochs(self, source):
+        """
+        determine epochs that overlap this source
+
+        This is an iterator that yields (ccdRecord, Footprint)
+        """
         for ccdRecord in self.ccds:
             if ccdRecord.contains(source.getCoord()):
                 # get object footprint on the calexp
@@ -52,36 +77,72 @@ class LSSTProducer(object):
                     yield ccdRecord, fp
 
     def getSourceBBox(self, source):
-        count = 0
+        """
+        run through all overalapping footprints and get max size
+
+        return the number of overlaps and max size
+        """
+        ncutout = 0
         maxWidth = 0
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
-            count += 1
+            ncutout += 1
             maxWidth = max(maxWidth, footprint.getBBox().getWidth())
             maxWidth = max(maxWidth, footprint.getBBox().getHeight())
-        return count, maxWidth
+        return ncutout, maxWidth
 
-    def makeCatalog(self, limit=None):
-        """Return a list of tuples of (id, num_epochs, stamp_width) for all
-        objects in the coadd patch.
+    def _get_struct(self, n):
+        dt = [
+            ('id','i8'),
+            ('box_size','i4'),
+            ('ra','f8'),
+            ('dec','f8'),
+            ('ncutout','i4'),
+        ]
 
-        If `limit` is not None, only tuples for that many objects will be
-        returned.  The objects are selected from near the middle of the
-        catalog to avoid just returning garbage on the edge.
+        return numpy.zeros(n, dtype=dt)
+
+    def getCatalog(self):
+        if not hasattr(self,'catalog'):
+            self.makeCatalog()
+
+        return self.catalog
+
+    def makeCatalog(self):
         """
+        Make the catalog for all objects in the coadd patch.
+
+        If `limit` was set in construction, only that many objects will be
+        used.  The objects are selected from near the middle of the catalog to
+        avoid just returning garbage on the edge.
+        """
+
+        limit=self.limit
         if limit is None:
             meas = self.meas
         else:
             start = len(self.meas)//2 - limit//2
             stop = start + limit
             meas = self.meas[start:stop]
+
         result = []
         for source in meas:
-            count, width = self.getSourceBBox(source)
-            result.append((source.getId(), count, width, source.getCoord()))
+            ncutout, width = self.getSourceBBox(source)
+            result.append((source.getId(), ncutout, width, source.getCoord()))
 
-        return result
+        n = len(result)
+        data = self._get_struct(n)
+        for i,objdata in enumerate(result):
+            coord=objdata[3]
 
-    def makeDataId(self, ccdRecord):
+            data['id'][i]  = objdata[0]
+            data['box_size'][i] = objdata[2]
+            data['ra'][i] = coord.getRa().asDegrees()
+            data['dec'][i] = coord.getDec().asDegrees()
+            data['ncutout'][i]  = objdata[1]
+
+        self.catalog=data
+
+    def getDataId(self, ccdRecord):
         """Make a calexp data ID from a CCD ExposureRecord.
 
         Must be overridden for cameras whose data IDs have something other
@@ -92,17 +153,19 @@ class LSSTProducer(object):
     def loadImages(self):
         self.calexps = {}
         for ccdRecord in self.ccds:
-            self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.makeDataId(ccdRecord))
+            self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
 
-    def makeStamps(self, sourceId, count, width):
+    def getStamps(self, obj_data):
         """
         """
-        source = self.meas.find(sourceId)  # find src record by ID
+        source = self.meas.find(obj_data['id'])  # find src record by ID
         stamps = []
         for ccdRecord, footprint in self.getOverlappingEpochs(source):
             calexp = self.calexps[ccdRecord.getId()]
 
-            extent = afwGeom.Extent2I(width, width)
+            box_size = obj_data['box_size']
+
+            extent = afwGeom.Extent2I(box_size, box_size)
             fullBBox = afwGeom.Box2I(
                 footprint.getBBox().getMin(), 
                 extent,
@@ -116,7 +179,7 @@ class LSSTProducer(object):
         return stamps
 
 
-def test_make_producer():
+def test_make_producer(limit=10):
     butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc/")
 
     tract = 0
@@ -128,6 +191,7 @@ def test_make_producer():
         tract,
         patch,
         filter,
+        limit=limit,
     )
 
     return producer
@@ -137,36 +201,54 @@ def test():
     test making a producer
     """
 
-    producer = test_make_producer()
+    producer = test_make_producer(limit=10)
 
-    cat = producer.makeCatalog(limit=10)
-    producer.loadImages()
+    cat = producer.getCatalog()
 
-    objdata = cat[1]
-    skycoord = objdata[3]
-    ra = skycoord.getRa().asDegrees()
-    dec = skycoord.getDec().asDegrees()
 
-    stamps = producer.makeStamps(objdata[0], objdata[1], objdata[2])
-    stamp, pos = stamps[1]
+    stamps = producer.getStamps(cat[1])
+    stamp, orig_pos = stamps[1]
+    ncutout = len(stamps)
+    
+    numbers = numpy.arange(cat.size)
 
+    # image
     arr=stamp.getMaskedImage().getImage().getArray()
+    # variance
     var=stamp.getMaskedImage().getVariance().getArray()
+    weight=1.0/var
+
+    # bit mask
     mask=stamp.getMaskedImage().getMask().getArray()
 
-    # this will be in arcsec
-    wcs = stamp.getWcs().linearizePixelToSky(pos, afwGeom.arcseconds)
+    # no seg map yet
+
+    # need to add to the object data; means writing object data last
+    # instead of first
+    wcs = stamp.getWcs().linearizePixelToSky(orig_pos, afwGeom.arcseconds)
     jacobian = wcs.getLinear().getMatrix()
     print("jacobian:",jacobian)
 
+    # psf image
     psfobj=stamp.getPsf()
+    psfim = psfobj.computeKernelImage(orig_pos).getArray()
 
-    psfim = psfobj.computeKernelImage(pos).getArray()
+    # unpack position in original image
+    orig_row = orig_pos.getY()
+    orig_col = orig_pos.getX()
 
-    cutout_cen = pos - stamp.getXY0()
+    orig_start = stamp.getXY0()
+    orig_start_row = orig_start.getY()
+    orig_start_col = orig_start.getX()
 
-    row = cutout_cen.getY()
-    col = cutout_cen.getX()
+    # location in the cutout
+    cutout_cen = orig_pos - orig_start
+
+
+    cutout_row = cutout_cen.getY()
+    cutout_col = cutout_cen.getX()
+
+    file_id=-9999
 
     return producer
  
