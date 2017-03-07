@@ -17,7 +17,7 @@ TODO:
 
     - set weight map zero for bad bits in bitmask
     - scale the images to common zero point
-    - write the images to MEDS (easy)
+    - write psf image
 
     - make sure we agree on coordinate conventions
 
