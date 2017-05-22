@@ -150,7 +150,11 @@ class LSSTProducer(object):
             ref = self.ref[start:stop]
 
         result = []
+        nChildKey = ref.schema.find("deblend_nChild").key
         for source in ref:
+            if source.get(nChildKey) != 0:
+                # Skip parent objects, since we'll also process their children.
+                continue
             radius = self.computeBoxRadius(source)
             epochs = self.findOverlappingEpochs(source, radius=radius)
             result.append((source.getId(),
