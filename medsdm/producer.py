@@ -1,7 +1,6 @@
 """
 TODO: 
 
-    - include coadd image
     - seg maps
 
     - deal with fullStamp going off image, stamps going off edge
