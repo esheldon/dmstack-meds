@@ -30,6 +30,7 @@ import numpy
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+import lsst.afw.table as afwTable
 import lsst.afw.geom.ellipses as afwEllipses
 
 
@@ -48,7 +49,8 @@ class LSSTProducer(object):
 
     def __init__(self, butler, tract, patch, filter, limit=None):
         self.butler = butler
-        self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch, filter=filter)
+        self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
+                                   flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
         self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
 
