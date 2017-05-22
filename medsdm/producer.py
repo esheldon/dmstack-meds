@@ -9,13 +9,10 @@ TODO:
         - currently not writing anything
             - set weight==0 and some bitmask for missing pixels off edge
 
-    - stamps too small, resize to "5-sigma", round to 2^N or 3*2^N
-    - stamps should grow symmetrically
+    - round stamps to 2^N or 3*2^N
     - make sure stamps are the same size in every band
 
-    - try to center the stamp
-
-    - set weight map zero for bad bits in bitmask
+    - provide ability to get sky variance only
     - scale the images to common zero point
     - write psf image
 
@@ -54,17 +51,17 @@ class LSSTProducer(object):
 
     def __init__(self, butler, tract, patch, filter, limit=None):
         self.butler = butler
-        self.meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
-        self.coadds = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
-        self.ccds = self.coadds.getInfo().getCoaddInputs().ccds
+        self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch, filter=filter)
+        self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
+        self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
 
         self.limit=limit
 
         self.loadImages()
 
     @staticmethod
-    def projectBox(source, ccd, radius):
-        pixel = afwGeom.Point2I(ccd.getWcs().skyToPixel(source.getCoord()))
+    def projectBox(source, wcs, radius):
+        pixel = afwGeom.Point2I(wcs.skyToPixel(source.getCoord()))
         box = afwGeom.Box2I()
         box.include(pixel)
         box.grow(radius)
@@ -89,10 +86,11 @@ class LSSTProducer(object):
         MIN_RADIUS = 16.0
         sigma = afwEllipses.Axes(source.getShape()).getA()
         if not (sigma >= MIN_RADIUS):  # handles small objects and NaNs
-            sigma = MIN_RADIUS
-        return int(numpy.ceil(RADIUS_FACTOR*sigma))
+            return int(numpy.ceil(MIN_RADIUS))
+        else:
+            return int(numpy.ceil(RADIUS_FACTOR*sigma))
 
-    def findOverlappingEpochs(self, source, radius=None):
+    def findOverlappingEpochs(self, source, radius=None, include_coadd=True):
         """Determine the epoch images that overlap a coadd source.
 
         Returns a list of tuples of `(box, ccd)`, where `box` is
@@ -104,8 +102,14 @@ class LSSTProducer(object):
         pad them.
         """
         result = []
+        if include_coadd:
+            sourceBox = self.projectBox(source, self.coadd.getWcs(), radius)
+            imageBox = self.coadd.getBBox()
+            if not imageBox.contains(sourceBox):
+                raise NotImplementedError("Cannot process sources on the edge of the coadd")
+            result.append((None, sourceBox))
         for ccd in self.ccds:
-            sourceBox = self.projectBox(source, ccd, radius)
+            sourceBox = self.projectBox(source, ccd.getWcs(), radius)
             imageBox = ccd.getBBox()
             if not imageBox.contains(sourceBox):
                 continue
@@ -140,14 +144,14 @@ class LSSTProducer(object):
 
         limit=self.limit
         if limit is None:
-            meas = self.meas
+            ref = self.ref
         else:
-            start = len(self.meas)//2 - limit//2
+            start = len(self.ref)//2 - limit//2
             stop = start + limit
-            meas = self.meas[start:stop]
+            ref = self.ref[start:stop]
 
         result = []
-        for source in meas:
+        for source in ref:
             radius = self.computeBoxRadius(source)
             epochs = self.findOverlappingEpochs(source, radius=radius)
             result.append((source.getId(),
@@ -186,16 +190,22 @@ class LSSTProducer(object):
         Currently calexp.getBBox().contains(fullBBox) is checked which returns
         False if the full stamp is not contained
         """
-        source = self.meas.find(obj_data['id'])  # find src record by ID
+        source = self.ref.find(obj_data['id'])  # find src record by ID
         stamps = []
         width = obj_data['box_size']
         radius = self.getBoxRadiusFromWidth(width)
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
-            calexp = self.calexps[ccdRecord.getId()]
-            assert bbox.getWidth() == width and bbox.getHeight() == width
-            assert calexp.getBBox().contains(bbox)
-            fullStamp = calexp.Factory(calexp, bbox=bbox, origin=afwImage.PARENT, deep=True)
-            position = ccdRecord.getWcs().skyToPixel(source.getCoord())
+            if ccdRecord is None:
+                # this is a coadd stamp
+                fullStamp = self.coadd.Factory(self.coadd, bbox=bbox, origin=afwImage.PARENT,
+                                               deep=True)
+                position = self.coadd.getWcs().skyToPixel(source.getCoord())
+            else:
+                calexp = self.calexps[ccdRecord.getId()]
+                assert bbox.getWidth() == width and bbox.getHeight() == width
+                assert calexp.getBBox().contains(bbox)
+                fullStamp = calexp.Factory(calexp, bbox=bbox, origin=afwImage.PARENT, deep=True)
+                position = ccdRecord.getWcs().skyToPixel(source.getCoord())
             stamps.append((fullStamp, position))
         return stamps
 
