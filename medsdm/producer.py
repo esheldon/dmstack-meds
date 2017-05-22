@@ -10,10 +10,8 @@ TODO:
             - set weight==0 and some bitmask for missing pixels off edge
 
     - round stamps to 2^N or 3*2^N
-    - make sure stamps are the same size in every band
 
     - provide ability to get sky variance only
-    - scale the images to common zero point
     - write psf image
 
     - make sure we agree on coordinate conventions
@@ -194,6 +192,7 @@ class LSSTProducer(object):
         stamps = []
         width = obj_data['box_size']
         radius = self.getBoxRadiusFromWidth(width)
+        coaddFluxMag0 = self.coadd.getCalib().getFluxMag0()[0]
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             if ccdRecord is None:
                 # this is a coadd stamp
@@ -202,9 +201,13 @@ class LSSTProducer(object):
                 position = self.coadd.getWcs().skyToPixel(source.getCoord())
             else:
                 calexp = self.calexps[ccdRecord.getId()]
+                calexpFluxMag0 = calexp.getCalib().getFluxMag0()[0]
+                fluxScaling = coaddFluxMag0/calexpFluxMag0
                 assert bbox.getWidth() == width and bbox.getHeight() == width
                 assert calexp.getBBox().contains(bbox)
                 fullStamp = calexp.Factory(calexp, bbox=bbox, origin=afwImage.PARENT, deep=True)
+                mi = fullStamp.getMaskedImage()
+                mi *= fluxScaling
                 position = ccdRecord.getWcs().skyToPixel(source.getCoord())
             stamps.append((fullStamp, position))
         return stamps
