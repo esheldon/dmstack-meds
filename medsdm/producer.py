@@ -192,20 +192,20 @@ class LSSTProducer(object):
         radius = self.getBoxRadiusFromWidth(width)
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             calexp = self.calexps[ccdRecord.getId()]
-            assert bbox.getWidth() == width and bbox.getHeight() == height
+            assert bbox.getWidth() == width and bbox.getHeight() == width
             assert calexp.getBBox().contains(bbox)
-            fullStamp = calexp.Factory(calexp, bbox=fullBBox, origin=afwImage.PARENT, deep=True)
+            fullStamp = calexp.Factory(calexp, bbox=bbox, origin=afwImage.PARENT, deep=True)
             position = ccdRecord.getWcs().skyToPixel(source.getCoord())
             stamps.append((fullStamp, position))
         return stamps
 
 
 def test_make_producer(limit=10):
-    butler = dafPersist.Butler("/u/ki/boutigny/ki19/MACSJ2243/output/coadd_dir_cc/")
+    butler = dafPersist.Butler("/datasets/hsc/repo/rerun/private/hchiang2/RC/DM-10129")
 
-    tract = 0
-    patch = "1,4"
-    filter = "r"
+    tract = 8766
+    patch = "4,4"
+    filter = "HSC-I"
 
     producer = LSSTProducer(
         butler,
