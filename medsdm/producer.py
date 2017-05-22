@@ -36,6 +36,7 @@ import numpy
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+import lsst.afw.geom.ellipses as afwEllipses
 
 
 class LSSTProducer(object):
@@ -61,36 +62,55 @@ class LSSTProducer(object):
 
         self.loadImages()
 
-    def getOverlappingEpochs(self, source):
-        """
-        determine epochs that overlap this source
+    @staticmethod
+    def projectBox(source, ccd, radius):
+        pixel = afwGeom.Point2I(ccd.getWcs().skyToPixel(source.getCoord()))
+        box = afwGeom.Box2I()
+        box.include(pixel)
+        box.grow(radius)
+        return box
 
-        This is an iterator that yields (ccdRecord, Footprint)
-        """
-        for ccdRecord in self.ccds:
-            if ccdRecord.contains(source.getCoord()):
-                # get object footprint on the calexp
-                fp = source.getFootprint().transform(
-                    self.coadds.getWcs(),
-                    ccdRecord.getWcs(),
-                    ccdRecord.getBBox()
-                )
-                if fp.getArea() != 0:
-                    yield ccdRecord, fp
+    @staticmethod
+    def getBoxRadiusFromWidth(width):
+        return (width - 1)//2
 
-    def getSourceBBox(self, source):
-        """
-        run through all overalapping footprints and get max size
+    @staticmethod
+    def getBoxWidthFromRadius(radius):
+        return radius*2 + 1
 
-        return the number of overlaps and max size
+    @staticmethod
+    def computeBoxRadius(source):
         """
-        ncutout = 0
-        maxWidth = 0
-        for ccdRecord, footprint in self.getOverlappingEpochs(source):
-            ncutout += 1
-            maxWidth = max(maxWidth, footprint.getBBox().getWidth())
-            maxWidth = max(maxWidth, footprint.getBBox().getHeight())
-        return ncutout, maxWidth
+        Calculate the postage stamp "radius" for a source.
+
+        TODO: make RADIUS_FACTOR and MIN_RADIUS configurable.
+        """
+        RADIUS_FACTOR = 5.0
+        MIN_RADIUS = 16.0
+        sigma = afwEllipses.Axes(source.getShape()).getA()
+        if not (sigma >= MIN_RADIUS):  # handles small objects and NaNs
+            sigma = MIN_RADIUS
+        return int(numpy.ceil(RADIUS_FACTOR*sigma))
+
+    def findOverlappingEpochs(self, source, radius=None):
+        """Determine the epoch images that overlap a coadd source.
+
+        Returns a list of tuples of `(box, ccd)`, where `box` is
+        the postage-stamp bounding box in pixel coordinates and `ccd`
+        is a an `ExposureRecord` containing CCD metadata.
+
+        TODO: at present this skips images for which the postage stamp
+        lies on the image boundary, because we don't yet have code to
+        pad them.
+        """
+        result = []
+        for ccd in self.ccds:
+            sourceBox = self.projectBox(source, ccd, radius)
+            imageBox = ccd.getBBox()
+            if not imageBox.contains(sourceBox):
+                continue
+            result.append((ccd, sourceBox))
+        return result
 
     def _get_struct(self, n):
         dt = [
@@ -111,8 +131,6 @@ class LSSTProducer(object):
 
     def makeCatalog(self):
         """
-        For now, set arbitrary min of 32x32 box size
-
         Make the catalog for all objects in the coadd patch.
 
         If `limit` was set in construction, only that many objects will be
@@ -130,23 +148,21 @@ class LSSTProducer(object):
 
         result = []
         for source in meas:
-            ncutout, width = self.getSourceBBox(source)
-            result.append((source.getId(), ncutout, width, source.getCoord()))
+            radius = self.computeBoxRadius(source)
+            epochs = self.findOverlappingEpochs(source, radius=radius)
+            result.append((source.getId(),
+                           len(epochs),
+                           self.getBoxWidthFromRadius(radius),
+                           source.getCoord()))
 
         n = len(result)
         data = self._get_struct(n)
-        for i,objdata in enumerate(result):
-            coord=objdata[3]
-
-            data['id'][i]  = objdata[0]
-            data['box_size'][i] = objdata[2]
+        for i, (objId, nEpochs, width, coord) in enumerate(result):
+            data['id'][i]  = objId
+            data['box_size'][i] = width
             data['ra'][i] = coord.getRa().asDegrees()
             data['dec'][i] = coord.getDec().asDegrees()
-            data['ncutout'][i]  = objdata[1]
-
-        w,=numpy.where(data['box_size'] < 32)
-        if w.size > 0:
-            data['box_size'][w] = 32
+            data['ncutout'][i]  = nEpochs
 
         self.catalog=data
 
@@ -172,20 +188,13 @@ class LSSTProducer(object):
         """
         source = self.meas.find(obj_data['id'])  # find src record by ID
         stamps = []
-        for ccdRecord, footprint in self.getOverlappingEpochs(source):
+        width = obj_data['box_size']
+        radius = self.getBoxRadiusFromWidth(width)
+        for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             calexp = self.calexps[ccdRecord.getId()]
-
-            box_size = obj_data['box_size']
-
-            extent = afwGeom.Extent2I(box_size, box_size)
-            fullBBox = afwGeom.Box2I(
-                footprint.getBBox().getMin(), 
-                extent,
-            )
-            if calexp.getBBox().contains(fullBBox):
-                fullStamp = calexp.Factory(calexp, fullBBox, afwImage.PARENT, True)
-            else:
-                fullStamp = None
+            assert bbox.getWidth() == width and bbox.getHeight() == height
+            assert calexp.getBBox().contains(bbox)
+            fullStamp = calexp.Factory(calexp, bbox=fullBBox, origin=afwImage.PARENT, deep=True)
             position = ccdRecord.getWcs().skyToPixel(source.getCoord())
             stamps.append((fullStamp, position))
         return stamps
