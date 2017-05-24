@@ -1,0 +1,5 @@
+setupRequired(afw)
+setupRequired(obs_base)
+setupOptional(obs_subaru)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR})
