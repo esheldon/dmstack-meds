@@ -59,10 +59,37 @@ class LSSTProducer(object):
                                    flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
         self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
+        self.coaddSegMap = None
 
         self.limit=limit
 
         self.loadImages()
+
+    def makeCoaddSegMap(self, radius=5):
+        """Build a *really* naive segmentation map by inserting small circular regions
+        for each source, going from faintest to brightest in blends.
+        """
+        result = afwImage.ImageI(self.coadd.getBBox())
+        obj_data = self.getCatalog()
+        id_to_number = {obj["id"]: obj["number"] for obj in obj_data}
+        for parent in self.ref.getChildren(0):
+            children = self.ref.getChildren(parent.getId())
+            if len(children) == 0:
+                data = [(parent.getPsfFlux(), parent.getCentroid(), parent.getId())]
+            else:
+                data = [(child.getPsfFlux(), child.getCentroid(), child.getId())
+                        for child in children]
+                data.sort()
+            for flux, centroid, objId in data:
+                number = id_to_number.get(objId, None)
+                if number is None:
+                    # This should only happen when we're limited to a small number of objects
+                    # for testing
+                    continue
+                stencil = afwGeom.SpanSet.fromShape(radius, afwGeom.Stencil.CIRCLE,
+                                                    afwGeom.Point2I(centroid))
+                stencil.setImage(result, id_to_number[objId], region=result.getBBox(), doClip=True)
+        return result
 
     @staticmethod
     def projectBox(source, wcs, radius):
@@ -173,7 +200,7 @@ class LSSTProducer(object):
         data = self._get_struct(n)
         for i, (objId, nEpochs, width, coord) in enumerate(result):
             data['id'][i]  = objId
-            data['number'][i]  = objId
+            data['number'][i]  = i + 1
             data['box_size'][i] = width
             data['ra'][i] = coord.getRa().asDegrees()
             data['dec'][i] = coord.getDec().asDegrees()
@@ -201,6 +228,8 @@ class LSSTProducer(object):
         Currently calexp.getBBox().contains(fullBBox) is checked which returns
         False if the full stamp is not contained
         """
+        if self.coaddSegMap is None:
+            self.coaddSegMap = self.makeCoaddSegMap()
         source = self.ref.find(obj_data['id'])  # find src record by ID
         stamps = []
         width = obj_data['box_size']
@@ -209,9 +238,10 @@ class LSSTProducer(object):
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             if ccdRecord is None:
                 # this is a coadd stamp
-                fullStamp = self.coadd.Factory(self.coadd, bbox=bbox, origin=afwImage.PARENT,
+                fullStamp = afwImage.ExposureF(self.coadd, bbox=bbox, origin=afwImage.PARENT,
                                                deep=True)
                 position = self.coadd.getWcs().skyToPixel(source.getCoord())
+                segmap = afwImage.ImageI(self.coaddSegMap, bbox, afwImage.PARENT, True)
             else:
                 calexp = self.calexps[ccdRecord.getId()]
                 calexpFluxMag0 = calexp.getCalib().getFluxMag0()[0]
@@ -222,7 +252,8 @@ class LSSTProducer(object):
                 mi = fullStamp.getMaskedImage()
                 mi *= fluxScaling
                 position = ccdRecord.getWcs().skyToPixel(source.getCoord())
-            stamps.append((fullStamp, position))
+                segmap = None
+            stamps.append((fullStamp, position, segmap))
         return stamps
 
 
@@ -252,10 +283,9 @@ def test():
 
     cat = producer.getCatalog()
 
-
     index=1
     stamps = producer.getStamps(cat[index])
-    stamp, orig_pos = stamps[1]
+    stamp, orig_pos, segmap = stamps[1]
 
 
     flag_dict = stamp.mask.getMaskPlaneDict()
@@ -278,8 +308,6 @@ def test():
 
     # bit mask
     mask=stamp.mask.array
-
-    # no seg map yet
 
     # need to add to the object data; means writing object data last
     # instead of first
