@@ -285,7 +285,7 @@ def test():
 
     index=1
     stamps = producer.getStamps(cat[index])
-    stamp, orig_pos, segmap = stamps[1]
+    stamp, orig_pos, seg_map = stamps[1]
 
 
     flag_dict = stamp.mask.getMaskPlaneDict()

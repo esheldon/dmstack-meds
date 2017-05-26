@@ -104,6 +104,7 @@ class DMMedsMaker(meds.MEDSMaker):
         # fill in obj_data for the stamps
         self._fill_obj_data(iobj, image_data)
 
+        box_size = obj_data['box_size'][iobj]
         # write image data
         for cutout_type in self['cutout_types']:
             print('    %d: writing %s cutouts' % (iobj,cutout_type))
@@ -111,17 +112,27 @@ class DMMedsMaker(meds.MEDSMaker):
             cutout_hdu = self._get_cutout_hdu(cutout_type)
 
             for icut, idata in enumerate(image_data):
-                stamp, orig_pos = idata
+                stamp, orig_pos, seg_map = idata
 
                 if stamp is None:
                     print("    stamp",icut,"is None")
                     continue
 
-                im_data = self._extract_image(
-                    stamp,
-                    cutout_type,
-                    obj_data['box_size'][iobj],
-                )
+                if cutout_type == 'seg':
+                    if seg_map is None and icut != 0:
+                        assert self['fake_se_seg']
+                        # grab the image and make a fake
+                        # seg map like that
+
+                        im_data = numpy.zeros( [box_size]*2, dtype='i4')
+                    else:
+                        im_data = seg_map.array.astype('i4')
+                else:
+                    im_data = self._extract_image(
+                        stamp,
+                        cutout_type,
+                        box_size,
+                    )
 
                 self._write_cutout(
                     iobj,
@@ -182,7 +193,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
         obj_data=self.obj_data
         for icut,idata in enumerate(image_data):
-            stamp, orig_pos = idata
+            stamp, orig_pos, seg_map = idata
             if stamp is None:
                 continue
 
@@ -266,7 +277,8 @@ def test(limit=10):
     producer = test_make_producer(limit=limit)
 
     config={
-        'cutout_types':['image','weight','bmask'],
+        'cutout_types':['image','weight','bmask','seg'],
+        'fake_se_seg':True,
     }
     maker = DMMedsMaker(producer, config=config)
     maker.write("test.fits")
