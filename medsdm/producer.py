@@ -15,6 +15,12 @@ TODO:
 
     - make sure we agree on coordinate conventions
 
+    - copy flags_to_check into meta data
+    - flags_to_check also for coadd
+    - implement coadd only mode
+    - implement subtracted nbrs for coadd
+    - include coadd catalog  flags in object_data extension
+
 
 BUGS found in dmstack
 
@@ -118,6 +124,7 @@ class LSSTProducer(object):
     def _get_struct(self, n):
         dt = [
             ('id','i8'),
+            ('number','i8'),
             ('box_size','i4'),
             ('ra','f8'),
             ('dec','f8'),
@@ -166,6 +173,7 @@ class LSSTProducer(object):
         data = self._get_struct(n)
         for i, (objId, nEpochs, width, coord) in enumerate(result):
             data['id'][i]  = objId
+            data['number'][i]  = objId
             data['box_size'][i] = width
             data['ra'][i] = coord.getRa().asDegrees()
             data['dec'][i] = coord.getDec().asDegrees()
@@ -245,20 +253,31 @@ def test():
     cat = producer.getCatalog()
 
 
-    stamps = producer.getStamps(cat[1])
+    index=1
+    stamps = producer.getStamps(cat[index])
     stamp, orig_pos = stamps[1]
+
+
+    flag_dict = stamp.mask.getMaskPlaneDict()
+    flags_to_ignore = ['DETECTED','DETECTED_NEGATIVE']
+    flags_to_check = 0
+    for key in flag_dict:
+        if key not in flags_to_ignore:
+            flags_to_check |= stamp.mask.getPlaneBitMask(key)
+
+    print("flags to check:",flags_to_check)
     ncutout = len(stamps)
     
     numbers = numpy.arange(cat.size)
 
     # image
-    arr=stamp.getMaskedImage().getImage().getArray()
+    arr=stamp.image.array
     # variance
-    var=stamp.getMaskedImage().getVariance().getArray()
+    var=stamp.variance.array
     weight=1.0/var
 
     # bit mask
-    mask=stamp.getMaskedImage().getMask().getArray()
+    mask=stamp.mask.array
 
     # no seg map yet
 
@@ -268,9 +287,15 @@ def test():
     jacobian = wcs.getLinear().getMatrix()
     print("jacobian:",jacobian)
 
+    # psf image of coadd, with a little padding this should be
+    # bigger than any SE psf
+    coadd_psfobj = producer.coadd.getPsf()
+    coadd_pos = producer.ref.find(cat['id'][index]).getCentroid()
+    coadd_psfim = coadd_psfobj.computeKernelImage(coadd_pos).array
+
     # psf image
     psfobj=stamp.getPsf()
-    psfim = psfobj.computeKernelImage(orig_pos).getArray()
+    psfim = psfobj.computeKernelImage(orig_pos).array
 
     # unpack position in original image
     orig_row = orig_pos.getY()

@@ -1,12 +1,11 @@
 from __future__ import print_function
 import numpy
+import esutil as eu
+
 import meds
 import fitsio
 
 import lsst.afw.geom as afwGeom
-
-import esutil as eu
-from meds import util
 
 from .defaults import default_config
 
@@ -21,6 +20,7 @@ class DMMedsMaker(meds.MEDSMaker):
                  config=None,
                  meta_data=None):
 
+        self.psf_data=None
         self._load_config(config)
         self._set_extra_config()
 
@@ -34,7 +34,7 @@ class DMMedsMaker(meds.MEDSMaker):
         self._set_obj_data(obj_data)
 
         # fake the image info for now
-        self.image_info=util.get_image_info_struct(
+        self.image_info=meds.util.get_image_info_struct(
             10,
             10,
         )
@@ -117,7 +117,11 @@ class DMMedsMaker(meds.MEDSMaker):
                     print("    stamp",icut,"is None")
                     continue
 
-                im_data = self._extract_image(stamp, cutout_type, obj_data['box_size'][iobj])
+                im_data = self._extract_image(
+                    stamp,
+                    cutout_type,
+                    obj_data['box_size'][iobj],
+                )
 
                 self._write_cutout(
                     iobj,
@@ -223,7 +227,7 @@ class DMMedsMaker(meds.MEDSMaker):
         self._set_extra_fields(obj_data, nmax)
 
         nobj = obj_data.size
-        new_obj_data = util.get_meds_output_struct(
+        new_obj_data = meds.util.get_meds_output_struct(
             nobj,
             nmax,
             extra_fields=self['extra_fields'],
@@ -232,9 +236,12 @@ class DMMedsMaker(meds.MEDSMaker):
 
         return new_obj_data
 
+    def _set_extra_fields(self, obj_data, nmax):
+        self['extra_fields'] = None
+
     def _get_minimal_meds_input(self):
         extra_fields=[('ncutout','i4')]
-        return get_meds_input_struct(1, extra_fields=extra_fields)
+        return meds.util.get_meds_input_struct(1, extra_fields=extra_fields)
 
     def _load_config(self, config):
         """
