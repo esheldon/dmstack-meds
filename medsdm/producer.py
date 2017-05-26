@@ -1,7 +1,7 @@
 """
 TODO: 
 
-    - seg maps
+    - seg maps: see if making these different across bands is okay
 
     - deal with fullStamp going off image, stamps going off edge
         - should just fill in part of the stamp
@@ -47,16 +47,21 @@ class LSSTProducer(object):
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter, limit=None):
+    def __init__(self, butler, tract, patch, filter, limit=None,
+                 doCoaddSegMap=True, doCalExpSegMaps=True):
         self.butler = butler
         self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
                                    flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+        self.meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
         self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
 
         self.limit=limit
-
-        self.loadImages()
+        if doCoaddSegMap:
+            self.coaddSegMap = self.makeSegMap(self.coadd, self.meas)
+        if doCalExpSegMaps:
+            self.calexpSegMaps = {}
+        self.loadImages(doSegMaps=doCalExpSegMaps)
 
     @staticmethod
     def projectBox(source, wcs, radius):
@@ -114,6 +119,80 @@ class LSSTProducer(object):
                 continue
             result.append((ccd, sourceBox))
         return result
+
+    @staticmethod
+    def makeSegMap(exposure, sources):
+        segMap = afwImage.ImageL(exposure.getBBox())
+        for parent in sources.getChildren(0):  # iterate over parents
+            children = sources.getChildren(parent.getId())
+            if len(children) == 0:
+                # Parent was never blended, so just use insert the
+                # original Footprint into the segmentation map.
+                parent.getFootprint().getSpans().setImage(segMap, parent.getId())
+                continue
+            bbox = parent.getFootprint().getBBox()
+            count = afwImage.ImageL(bbox)
+            tmpLabels = afwImage.ImageL(bbox)
+            tmpWeights = afwImage.ImageF(bbox)
+            ownerWeights = None
+            ownerLabels = None
+            childImage = afwImage.ImageF(bbox)
+            mask = numpy.zeros(childImage.array.shape, dtype=bool)
+            r2Image = afwImage.ImageF(bbox)
+            xg, yg = numpy.meshgrid(
+                numpy.arange(bbox.getBeginX(), bbox.getEndX(), dtype=numpy.float32),
+                numpy.arange(bbox.getBeginY(), bbox.getEndY(), dtype=numpy.float32),
+            )
+            for child in children:
+                # Make an image of the Footprint, with values in it
+                # set to the child's ID.
+                child.getFootprint().getSpans().setImage(tmpLabels, child.getId())
+                mask[:,:] = (tmpLabels.array != 0)
+                # Create an image of the child's HeavyFootprint
+                # (deblended pixel values).
+                child.getFootprint().insert(childImage)
+                # Create an image of the distance from the child's
+                # centroid (+0.01 as an easy hack to avoid
+                # divide-by-zero later).
+                r2Image.array[:,:] = (xg - child.getX())**2
+                r2Image.array[:,:] +=  (yg - child.getY())**2
+                r2Image.array[:,:] += 0.01
+                # Compute the second moments of the
+                # child image, which we'll use as the weight
+                # of this child at zero distance.
+                m = (r2Image.array*childImage.array).sum()
+                # Make an image of the weight of this child over
+                # the full parent bounding box.
+                tmpWeights.array = m/r2Image.array
+                # Give the child infinite weight in a central 3-pixel (radius) circle
+                stencil = afwGeom.SpanSet.fromShape(3, afwGeom.Stencil.CIRCLE,
+                                                    afwGeom.Point2I(child.getCentroid()))
+                if not bbox.contains(stencil.getBBox()):
+                    stencil = stencil.clippedTo(bbox)
+                stencil.setImage(tmpWeights, numpy.inf)
+                if ownerLabels is None:
+                    # If this is the first child processed,
+                    # declare it as the "owner" of all pixels in
+                    # its Footprint.
+                    ownerWeights = afwImage.ImageF(bbox)
+                    ownerLabels = afwImage.ImageL(bbox)
+                    ownerWeights.array[mask] = tmpWeights.array[mask]
+                    ownerLabels.array[mask] = child.getId()
+                else:
+                    # If this is not the first child processed,
+                    # declare it as the owner of any pixels in
+                    # its Footprint for which it has higher weight
+                    # than the previous owner.
+                    better = numpy.logical_and(tmpWeights > ownerWeights, mask)
+                    ownerLabels.array[better] = child.getId()
+                    ownerWeights.array[better] = tmpWeights.array[better]
+                tmpWeights.array[:,:] = 0
+                tmpLabels.array[:,:] = 0
+                childImage.array[:,:] = 0
+                mask[:,:] = 0
+            segMapSub = afwImage.ImageL(segMap, bbox=bbox, origin=afwImage.PARENT, deep=False)
+            segMapSub.array += ownerLabels.array
+        return segMap
 
     def _get_struct(self, n):
         dt = [
@@ -181,10 +260,15 @@ class LSSTProducer(object):
         """
         return dict(visit=ccdRecord["visit"], ccd=ccdRecord["ccd"])
 
-    def loadImages(self):
+    def loadImages(self, doSegMaps=True):
         self.calexps = {}
         for ccdRecord in self.ccds:
-            self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
+            dataId = self.getDataId(ccdRecord)
+            calexp = self.butler.get("calexp", dataId)
+            self.calexps[ccdRecord.getId()] = calexp
+            if doSegMaps:
+                src = self.butler.get("src", dataId)
+                self.calexpSegMaps[ccdRecord.getId()] = self.makeSegMap(calexp, src)
 
     def getStamps(self, obj_data):
         """
