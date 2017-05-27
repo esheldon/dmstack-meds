@@ -151,7 +151,7 @@ class LSSTProducer(object):
     def _get_struct(self, n):
         dt = [
             ('id','i8'),
-            ('number','i8'),
+            ('number','i4'),
             ('box_size','i4'),
             ('ra','f8'),
             ('dec','f8'),
@@ -221,7 +221,7 @@ class LSSTProducer(object):
         for ccdRecord in self.ccds:
             self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
 
-    def getStamps(self, obj_data):
+    def getStamps(self, obj_data, fake_seg_radius=5):
         """
         TODO
 
@@ -229,7 +229,8 @@ class LSSTProducer(object):
         False if the full stamp is not contained
         """
         if self.coaddSegMap is None:
-            self.coaddSegMap = self.makeCoaddSegMap()
+            self.coaddSegMap = self.makeCoaddSegMap(radius=fake_seg_radius)
+
         source = self.ref.find(obj_data['id'])  # find src record by ID
         stamps = []
         width = obj_data['box_size']

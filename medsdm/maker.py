@@ -94,7 +94,10 @@ class DMMedsMaker(meds.MEDSMaker):
         nobj=obj_data.size
         assert iobj < nobj
 
-        image_data = self.producer.getStamps(obj_data[iobj])
+        image_data = self.producer.getStamps(
+            obj_data[iobj],
+            fake_seg_radius=self['fake_seg_radius'],
+        )
         ncut =len(image_data)
         nexp = obj_data['ncutout'][iobj]
         if ncut != nexp:
@@ -248,7 +251,7 @@ class DMMedsMaker(meds.MEDSMaker):
         return new_obj_data
 
     def _set_extra_fields(self, obj_data, nmax):
-        self['extra_fields'] = None
+        self['extra_fields'] = [('number','i4')]
 
     def _get_minimal_meds_input(self):
         extra_fields=[('ncutout','i4')]
@@ -279,6 +282,7 @@ def test(limit=10):
     config={
         'cutout_types':['image','weight','bmask','seg'],
         'fake_se_seg':True,
+        'fake_seg_radius':2,
     }
     maker = DMMedsMaker(producer, config=config)
     maker.write("test.fits")
