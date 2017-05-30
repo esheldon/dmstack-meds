@@ -137,13 +137,11 @@ class LSSTProducer(object):
         if include_coadd:
             sourceBox = self.projectBox(source, self.coadd.getWcs(), radius)
             imageBox = self.coadd.getBBox()
-            if not imageBox.contains(sourceBox):
-                raise NotImplementedError("Cannot process sources on the edge of the coadd")
             result.append((None, sourceBox))
         for ccd in self.ccds:
             sourceBox = self.projectBox(source, ccd.getWcs(), radius)
             imageBox = ccd.getBBox()
-            if not imageBox.contains(sourceBox):
+            if not imageBox.overlaps(sourceBox):
                 continue
             result.append((ccd, sourceBox))
         return result
@@ -221,6 +219,28 @@ class LSSTProducer(object):
         for ccdRecord in self.ccds:
             self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
 
+    @staticmethod
+    def getPaddedSubImage(exposure, bbox):
+        region = exposure.getBBox()
+        if region.contains(bbox):
+            return afwImage.ExposureF(exposure, bbox=bbox, origin=afwImage.PARENT, deep=True)
+        result = afwImage.ExposureF(bbox)
+        result.setPsf(exposure.getPsf())
+        result.setWcs(exposure.getWcs())
+        result.setCalib(exposure.getCalib())
+        result.image.array[:, :] = float("nan")
+        result.variance.array[:, :] = float("inf")
+        result.mask.array[:, :] = numpy.uint16(result.mask.getPlaneBitMask("NO_DATA"))
+        bbox.clip(region)
+        subOut = afwImage.MaskedImageF(result.maskedImage, bbox=bbox,
+                                       origin=afwImage.PARENT, deep=False)
+        subIn = afwImage.MaskedImageF(exposure.maskedImage, bbox=bbox,
+                                      origin=afwImage.PARENT, deep=False)
+        subOut.image.array = subIn.image.array
+        subOut.variance.array = subIn.variance.array
+        subOut.mask.array = subIn.mask.array
+        return result
+
     def getStamps(self, obj_data, fake_seg_radius=5):
         """
         TODO
@@ -239,8 +259,7 @@ class LSSTProducer(object):
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             if ccdRecord is None:
                 # this is a coadd stamp
-                fullStamp = afwImage.ExposureF(self.coadd, bbox=bbox, origin=afwImage.PARENT,
-                                               deep=True)
+                fullStamp = self.getPaddedSubImage(self.coadd, bbox=bbox)
                 position = self.coadd.getWcs().skyToPixel(source.getCoord())
                 segmap = afwImage.ImageI(self.coaddSegMap, bbox, afwImage.PARENT, True)
             else:
@@ -248,8 +267,7 @@ class LSSTProducer(object):
                 calexpFluxMag0 = calexp.getCalib().getFluxMag0()[0]
                 fluxScaling = coaddFluxMag0/calexpFluxMag0
                 assert bbox.getWidth() == width and bbox.getHeight() == width
-                assert calexp.getBBox().contains(bbox)
-                fullStamp = calexp.Factory(calexp, bbox=bbox, origin=afwImage.PARENT, deep=True)
+                fullStamp = self.getPaddedSubImage(calexp, bbox=bbox)
                 mi = fullStamp.getMaskedImage()
                 mi *= fluxScaling
                 position = ccdRecord.getWcs().skyToPixel(source.getCoord())
