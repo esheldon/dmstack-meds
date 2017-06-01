@@ -7,7 +7,7 @@ import fitsio
 
 import lsst.afw.geom as afwGeom
 
-from .defaults import default_config
+from .defaults import DEFAULT_MAKER_CONFIG 
 
 class DMMedsMaker(meds.MEDSMaker):
     """
@@ -94,10 +94,8 @@ class DMMedsMaker(meds.MEDSMaker):
         nobj=obj_data.size
         assert iobj < nobj
 
-        image_data = self.producer.getStamps(
-            obj_data[iobj],
-            fake_seg_radius=self['fake_seg_radius'],
-        )
+        image_data = self.producer.getStamps(obj_data[iobj])
+
         ncut =len(image_data)
         nexp = obj_data['ncutout'][iobj]
         if ncut != nexp:
@@ -266,7 +264,7 @@ class DMMedsMaker(meds.MEDSMaker):
         # now config for this class
         # first the defaults
         this_config = {}
-        this_config.update(default_config)
+        this_config.update(DEFAULT_MAKER_CONFIG)
 
         # now override
         if config is not None:
@@ -277,15 +275,16 @@ class DMMedsMaker(meds.MEDSMaker):
 
 def test(limit=10):
     from .producer import test_make_producer
-    producer = test_make_producer(limit=limit)
 
-    config={
-        'cutout_types':['image','weight','bmask','seg'],
-        'fake_se_seg':True,
-        'fake_seg_radius':2,
+    producer_config={
+        'fake_seg_radius':5,
+        #'min_box_size':48,
     }
-    maker = DMMedsMaker(producer, config=config)
-    maker.write("test.fits")
+
+    producer = test_make_producer(limit=limit, config=producer_config)
+
+    maker = DMMedsMaker(producer)
+    maker.write("test-segrad5.fits")
 
 
 if __name__=="__main__":
