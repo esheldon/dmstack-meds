@@ -34,6 +34,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
 import lsst.afw.geom.ellipses as afwEllipses
 
+from .defaults import DEFAULT_PRODUCER_CONFIG 
 
 class LSSTProducer(object):
     """
@@ -48,7 +49,9 @@ class LSSTProducer(object):
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter, limit=None):
+    def __init__(self, butler, tract, patch, filter, limit=None, config=None):
+
+        self.setConfig(config)
         self.butler = butler
         self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
                                    flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
@@ -59,6 +62,15 @@ class LSSTProducer(object):
         self.limit=limit
 
         self.loadImages()
+
+    def setConfig(self, input_config):
+
+        config={}
+        config.update(DEFAULT_PRODUCER_CONFIG)
+        if input_config is not None:
+            config.update(input_config)
+
+        self.config=config
 
     def makeCoaddSegMap(self, radius=5):
         """Build a *really* naive segmentation map by inserting small circular regions
@@ -102,22 +114,36 @@ class LSSTProducer(object):
     def getBoxWidthFromRadius(radius):
         return radius*2 + 1
 
-    @staticmethod
-    def computeBoxRadius(source):
+    def computeBoxRadius(self, source):
         """
         Calculate the postage stamp "radius" for a source.
 
         TODO: make RADIUS_FACTOR and MIN_RADIUS configurable.
         """
-        RADIUS_FACTOR = 5.0
-        MIN_RADIUS = 16.0
-        sigma = afwEllipses.Axes(source.getShape()).getA()
-        if not (sigma >= MIN_RADIUS):  # handles small objects and NaNs
-            return int(numpy.ceil(MIN_RADIUS))
-        else:
-            return int(numpy.ceil(RADIUS_FACTOR*sigma))
+        conf = self.config
 
-    def findOverlappingEpochs(self, source, radius=None, include_coadd=True):
+        min_radius = conf['min_box_size']/2
+        max_radius = conf['max_box_size']/2
+
+        sigma = afwEllipses.Axes(source.getShape()).getA()
+
+        if numpy.isnan(sigma):
+            sigma = 1.0
+
+        rad = conf['radius_factor']*sigma
+        if rad < min_radius:
+            rad = min_radius
+        elif rad > max_radius:
+            rad = max_radius
+
+        return int(numpy.ceil(rad))
+
+        #if not (sigma >= min_radius):  # handles small objects and NaNs
+        #    return int(numpy.ceil(min_radius))
+        #else:
+        #    return int(numpy.ceil(conf['radius_factor']*sigma))
+
+    def findOverlappingEpochs(self, source, radius=None):
         """Determine the epoch images that overlap a coadd source.
 
         Returns a list of tuples of `(box, ccd)`, where `box` is
@@ -129,7 +155,7 @@ class LSSTProducer(object):
         pad them.
         """
         result = []
-        if include_coadd:
+        if self.config['include_coadd']:
             sourceBox = self.projectBox(source, self.coadd.getWcs(), radius)
             imageBox = self.coadd.getBBox()
             result.append((None, sourceBox))
@@ -241,15 +267,17 @@ class LSSTProducer(object):
             raise ValueError("Image type not supported")
         return result
 
-    def getStamps(self, obj_data, fake_seg_radius=5):
+    def getStamps(self, obj_data):
         """
         TODO
 
         Currently calexp.getBBox().contains(fullBBox) is checked which returns
         False if the full stamp is not contained
         """
+
+        conf=self.config
         if self.coaddSegMap is None:
-            self.coaddSegMap = self.makeCoaddSegMap(radius=fake_seg_radius)
+            self.coaddSegMap = self.makeCoaddSegMap(radius=conf['fake_seg_radius'])
 
         source = self.ref.find(obj_data['id'])  # find src record by ID
         stamps = []
@@ -276,7 +304,7 @@ class LSSTProducer(object):
         return stamps
 
 
-def test_make_producer(limit=10):
+def test_make_producer(limit=10, config=None):
     butler = dafPersist.Butler("/datasets/hsc/repo/rerun/private/hchiang2/RC/DM-10129")
 
     tract = 8766
@@ -289,6 +317,7 @@ def test_make_producer(limit=10):
         patch,
         filter,
         limit=limit,
+        config=config,
     )
 
     return producer
