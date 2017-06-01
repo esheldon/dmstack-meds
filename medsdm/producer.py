@@ -3,11 +3,6 @@ TODO:
 
     - seg maps
 
-    - deal with fullStamp going off image, stamps going off edge
-        - should just fill in part of the stamp
-        - currently not writing anything
-            - set weight==0 and some bitmask for missing pixels off edge
-
     - round stamps to 2^N or 3*2^N
 
     - provide ability to get sky variance only
