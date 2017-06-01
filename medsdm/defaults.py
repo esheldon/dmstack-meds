@@ -11,7 +11,8 @@ DEFAULT_MAKER_CONFIG = {
     # need this for lsst
     #'refband':'i',
     
-    # types of cutout images to make
+    # types of cutout images to make. Note psf is
+    # automatically made
     'cutout_types': ['image','weight','seg','bmask'],
 
     # currently must be True, since there
@@ -24,6 +25,7 @@ DEFAULT_MAKER_CONFIG = {
     # need this for lsst
     #'magzp_ref':30.0,
 
+    'variable_psf_box_size': True,
 }
 
 DEFAULT_PRODUCER_CONFIG = {

@@ -20,7 +20,9 @@ class DMMedsMaker(meds.MEDSMaker):
                  config=None,
                  meta_data=None):
 
-        self.psf_data=None
+        # fake this
+        self.psf_data={}
+
         self._load_config(config)
         self._set_extra_config()
 
@@ -59,6 +61,8 @@ class DMMedsMaker(meds.MEDSMaker):
         #self.obj_data = self._make_resized_data(obj_data)
         self._set_start_rows_and_pixel_count()
 
+        self._set_psf_layout()
+
 
     def _write_data(self, filename):
         """
@@ -75,6 +79,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
             # write images and also fill in object data structure
             nobj=self.obj_data.size
+            self.current_psf_position=0
             for iobj in xrange(nobj):
                 self._write_object_cutouts(iobj)
 
@@ -107,7 +112,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
         box_size = obj_data['box_size'][iobj]
         # write image data
-        for cutout_type in self['cutout_types']:
+        for cutout_type in self['cutout_types'] + ['psf']:
             print('    %d: writing %s cutouts' % (iobj,cutout_type))
 
             cutout_hdu = self._get_cutout_hdu(cutout_type)
@@ -127,7 +132,19 @@ class DMMedsMaker(meds.MEDSMaker):
 
                         im_data = numpy.zeros( [box_size]*2, dtype='i4')
                     else:
-                        im_data = seg_map.array.astype('i4')
+                        im_data = numpy.array(seg_map.array, dtype='i4', copy=False)
+
+                elif cutout_type=='psf':
+                    # psfs are variable in size
+                    im_data = self._extract_psf_image(stamp, orig_pos)
+                    print("psf shape:",im_data.shape)
+
+                    obj_data['psf_box_size'][iobj,icut] = im_data.shape[0]
+                    obj_data['psf_start_row'][iobj,icut] = self.current_psf_position
+
+                    # increment for the next write
+                    self.current_psf_position += im_data.size
+
                 else:
                     im_data = self._extract_image(
                         stamp,
@@ -143,6 +160,15 @@ class DMMedsMaker(meds.MEDSMaker):
                     cutout_type,
                 )
 
+    def _extract_psf_image(self, stamp, orig_pos):
+        """
+        get the psf associated with this stamp
+        """
+        psfobj=stamp.getPsf()
+        psfim = psfobj.computeKernelImage(orig_pos).array.astype('f4')
+        psfim = numpy.array(psfim, dtype='f4', copy=False)
+        return psfim
+
     def _write_cutout(self,
                       iobj,
                       icut,
@@ -152,7 +178,11 @@ class DMMedsMaker(meds.MEDSMaker):
         """
         extract a cutout and write it to the mosaic image
         """
-        start_row = self.obj_data['start_row'][iobj,icut]
+
+        if cutout_type=='psf':
+            start_row = self.obj_data['psf_start_row'][iobj,icut]
+        else:
+            start_row = self.obj_data['start_row'][iobj,icut]
 
         cutout_hdu.write(im_data, start=start_row)
 
@@ -249,11 +279,66 @@ class DMMedsMaker(meds.MEDSMaker):
         return new_obj_data
 
     def _set_extra_fields(self, obj_data, nmax):
-        self['extra_fields'] = [('number','i4')]
+        self['extra_fields'] = [
+            ('number','i4'),
+            ('psf_box_size','i8',nmax),
+            ('psf_start_row','i8',nmax),
+        ]
 
     def _get_minimal_meds_input(self):
         extra_fields=[('ncutout','i4')]
         return meds.util.get_meds_input_struct(1, extra_fields=extra_fields)
+
+    def _set_psf_layout(self):
+        """
+        set the box sizes and start row for each psf image
+
+        we don't yet actually know the box sizes, so we will assume
+        the coadd psf is maximal, with some padding
+        """
+
+        obj_data=self.obj_data
+
+        producer = self.producer
+
+        cat = producer.getCatalog()
+        stamps = producer.getStamps(cat[0])
+
+        coadd_stamp, orig_pos, seg_map = stamps[0]
+        psfobj=coadd_stamp.getPsf()
+        psfim = psfobj.computeKernelImage(orig_pos).array
+
+        # some padding
+        psf_size = max(psfim.shape)+2
+
+        # now assume all are the same size for reserving the
+        # data on disk. Not all pixels will be used
+
+        #obj_data['psf_box_size'] = psf_size
+        total_psf_pixels = 0
+        psf_npix = psf_size*psf_size
+
+        #psf_start_row = 0
+        for i in xrange(obj_data.size):
+            for j in xrange(obj_data['ncutout'][i]):
+                #obj_data['psf_start_row'][i,j] = psf_start_row
+
+                #psf_start_row += psf_npix
+                total_psf_pixels += psf_npix
+
+
+        self.total_psf_pixels = total_psf_pixels
+ 
+    '''
+    def _get_psf_dtype(self, nmax):
+        """
+        LSST psfs are variable in size
+        """
+        return [
+            ('psf_box_size','i8',nmax),
+            ('psf_start_row','i8',nmax),
+        ]
+    '''
 
     def _load_config(self, config):
         """
