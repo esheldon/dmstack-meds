@@ -220,25 +220,30 @@ class LSSTProducer(object):
             self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
 
     @staticmethod
-    def getPaddedSubImage(exposure, bbox):
-        region = exposure.getBBox()
+    def getPaddedSubImage(original, bbox):
+        region = original.getBBox()
         if region.contains(bbox):
-            return afwImage.ExposureF(exposure, bbox=bbox, origin=afwImage.PARENT, deep=True)
-        result = afwImage.ExposureF(bbox)
-        result.setPsf(exposure.getPsf())
-        result.setWcs(exposure.getWcs())
-        result.setCalib(exposure.getCalib())
-        result.image.array[:, :] = float("nan")
-        result.variance.array[:, :] = float("inf")
-        result.mask.array[:, :] = numpy.uint16(result.mask.getPlaneBitMask("NO_DATA"))
-        bbox.clip(region)
-        subOut = afwImage.MaskedImageF(result.maskedImage, bbox=bbox,
-                                       origin=afwImage.PARENT, deep=False)
-        subIn = afwImage.MaskedImageF(exposure.maskedImage, bbox=bbox,
-                                      origin=afwImage.PARENT, deep=False)
-        subOut.image.array = subIn.image.array
-        subOut.variance.array = subIn.variance.array
-        subOut.mask.array = subIn.mask.array
+            return original.Factory(original, bbox, afwImage.PARENT, True)
+        result = original.Factory(bbox)
+        bbox2 = afwGeom.Box2I(bbox)
+        bbox2.clip(region)
+        if isinstance(original, afwImage.Exposure):
+            result.setPsf(original.getPsf())
+            result.setWcs(original.getWcs())
+            result.setCalib(original.getCalib())
+            result.image.array[:, :] = float("nan")
+            result.variance.array[:, :] = float("inf")
+            result.mask.array[:, :] = numpy.uint16(result.mask.getPlaneBitMask("NO_DATA"))
+            subIn = afwImage.MaskedImageF(original.maskedImage, bbox=bbox2,
+                                          origin=afwImage.PARENT, deep=False)
+            result.maskedImage.assign(subIn, bbox=bbox2, origin=afwImage.PARENT)
+        elif isinstance(original, afwImage.ImageI):
+            result.array[:, :] = 0
+            subIn = afwImage.ImageI(original, bbox=bbox2,
+                                   origin=afwImage.PARENT, deep=False)
+            result.assign(subIn, bbox=bbox2, origin=afwImage.PARENT)
+        else:
+            raise ValueError("Image type not supported")
         return result
 
     def getStamps(self, obj_data, fake_seg_radius=5):
@@ -261,7 +266,7 @@ class LSSTProducer(object):
                 # this is a coadd stamp
                 fullStamp = self.getPaddedSubImage(self.coadd, bbox=bbox)
                 position = self.coadd.getWcs().skyToPixel(source.getCoord())
-                segmap = afwImage.ImageI(self.coaddSegMap, bbox, afwImage.PARENT, True)
+                segmap = self.getPaddedSubImage(self.coaddSegMap, bbox=bbox)
             else:
                 calexp = self.calexps[ccdRecord.getId()]
                 calexpFluxMag0 = calexp.getCalib().getFluxMag0()[0]
