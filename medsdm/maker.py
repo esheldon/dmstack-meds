@@ -137,7 +137,6 @@ class DMMedsMaker(meds.MEDSMaker):
                 elif cutout_type=='psf':
                     # psfs are variable in size
                     im_data = self._extract_psf_image(stamp, orig_pos)
-                    print("psf shape:",im_data.shape)
 
                     obj_data['psf_box_size'][iobj,icut] = im_data.shape[0]
                     obj_data['psf_start_row'][iobj,icut] = self.current_psf_position
@@ -167,6 +166,28 @@ class DMMedsMaker(meds.MEDSMaker):
         psfobj=stamp.getPsf()
         psfim = psfobj.computeKernelImage(orig_pos).array.astype('f4')
         psfim = numpy.array(psfim, dtype='f4', copy=False)
+
+        d=psfim.shape
+        if d[0] != d[1]:
+            print("trimming",d)
+            if d[0] > d[1]:
+                bigger=d[0]
+                smaller=d[1]
+            else:
+                bigger=d[1]
+                smaller=d[0]
+
+            diff = bigger-smaller
+            assert (diff % 2) == 0
+
+            beg = diff//2
+            end = bigger - diff//2
+
+            if d[0] > d[1]:
+                psfim = psfim[beg:end,:]
+            else:
+                psfim = psfim[:,beg:end]
+
         return psfim
 
     def _write_cutout(self,
