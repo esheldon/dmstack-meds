@@ -1,22 +1,4 @@
 """
-TODO: 
-
-    - seg maps
-
-    - round stamps to 2^N or 3*2^N
-
-    - provide ability to get sky variance only
-    - write psf image
-
-    - make sure we agree on coordinate conventions
-
-    - copy flags_to_check into meta data
-    - flags_to_check also for coadd
-    - implement coadd only mode
-    - implement subtracted nbrs for coadd
-    - include coadd catalog  flags in object_data extension
-
-
 BUGS found in dmstack
 
     - trying to import test.py, which means we can't have a test.py in our cwd!
