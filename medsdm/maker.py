@@ -80,7 +80,9 @@ class DMMedsMaker(meds.MEDSMaker):
             # write images and also fill in object data structure
             nobj=self.obj_data.size
             self.current_psf_position=0
+            print("writing cutouts")
             for iobj in xrange(nobj):
+                print("%d/%d" % (iobj+1,nobj))
                 self._write_object_cutouts(iobj)
 
             # We filled this on the fly, write last
@@ -113,7 +115,7 @@ class DMMedsMaker(meds.MEDSMaker):
         box_size = obj_data['box_size'][iobj]
         # write image data
         for cutout_type in self['cutout_types'] + ['psf']:
-            print('    %d: writing %s cutouts' % (iobj,cutout_type))
+            #print('    %d: writing %s cutouts' % (iobj,cutout_type))
 
             cutout_hdu = self._get_cutout_hdu(cutout_type)
 
@@ -209,23 +211,22 @@ class DMMedsMaker(meds.MEDSMaker):
 
 
     def _extract_image(self, stamp, cutout_type, dim):
-        mim  = stamp.getMaskedImage()
         if cutout_type == 'image':
-            data = mim.getImage().getArray()
+            data = stamp.image.array
         elif cutout_type == 'bmask':
-            data = mim.getMask().getArray()
-        elif cutout_type=='seg':
-            raise NotImplementedError("implement seg map")
+            data = stamp.mask.array
         elif cutout_type=='weight':
-            var   = mim.getVariance().getArray()
+            var  = stamp.variance.array
             data = var.copy()
+
             data[:,:]=0
             w=numpy.where(var > 0)
             if data[0].size > 0:
                 data[w] = 1.0/var[w]
 
         else:
-            raise NotImplementedError("bad image cutout_type: '%s'" % cutout_type)
+            raise NotImplementedError("bad image cutout_type "
+                                      "for _extract_image: '%s'" % cutout_type)
 
 
         eshape=(dim,dim)
@@ -390,7 +391,7 @@ def test(limit=10):
     producer = test_make_producer(limit=limit, config=producer_config)
 
     maker = DMMedsMaker(producer)
-    maker.write("test-segrad5.fits")
+    maker.write("test-scale-var.fits")
 
 
 if __name__=="__main__":

@@ -278,8 +278,10 @@ class LSSTProducer(object):
                 fluxScaling = coaddFluxMag0/calexpFluxMag0
                 assert bbox.getWidth() == width and bbox.getHeight() == width
                 fullStamp = self.getPaddedSubImage(calexp, bbox=bbox)
-                mi = fullStamp.getMaskedImage()
-                mi *= fluxScaling
+
+                # scales both the image and variance image
+                fullStamp.maskedImage *= fluxScaling
+
                 position = ccdRecord.getWcs().skyToPixel(source.getCoord())
                 segmap = None
             stamps.append((fullStamp, position, segmap))
@@ -287,7 +289,8 @@ class LSSTProducer(object):
 
 
 def test_make_producer(limit=10, config=None):
-    butler = dafPersist.Butler("/datasets/hsc/repo/rerun/private/hchiang2/RC/DM-10129")
+    #butler = dafPersist.Butler("/datasets/hsc/repo/rerun/private/hchiang2/RC/DM-10129")
+    butler = dafPersist.Butler("/project/hsc_rc/w_2017_26/DM-11165")
 
     tract = 8766
     patch = "4,4"
