@@ -408,7 +408,7 @@ class DMMedsMaker(meds.MEDSMaker):
         # first load the defaults from the parent
         super(DMMedsMaker,self)._load_config(this_config)
 
-def test(limit=10):
+def test(fname='test.fits', limit=10):
     from .producer import test_make_producer
 
     producer_config={
@@ -419,7 +419,7 @@ def test(limit=10):
     producer = test_make_producer(limit=limit, config=producer_config)
 
     maker = DMMedsMaker(producer)
-    maker.write("test-scale-var.fits")
+    maker.write(fname)
 
 
 if __name__=="__main__":
