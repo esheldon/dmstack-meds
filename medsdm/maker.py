@@ -51,7 +51,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
     def _build_meds_layout(self):
         """
-        This fudges some things for now
+        build the layout for the FITS file on disk 
         """
 
         # box sizes are even
@@ -171,7 +171,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
         d=psfim.shape
         if d[0] != d[1]:
-            print("trimming",d)
+            #print("trimming psf",d)
             if d[0] > d[1]:
                 bigger=d[0]
                 smaller=d[1]
@@ -211,19 +211,15 @@ class DMMedsMaker(meds.MEDSMaker):
 
 
     def _extract_image(self, stamp, cutout_type, dim):
+        """
+        wrapper to extract image,bmask or weight images
+        """
         if cutout_type == 'image':
             data = stamp.image.array
         elif cutout_type == 'bmask':
             data = stamp.mask.array
         elif cutout_type=='weight':
-            var  = stamp.variance.array
-            data = var.copy()
-
-            data[:,:]=0
-            w=numpy.where(var > 0)
-            if data[0].size > 0:
-                data[w] = 1.0/var[w]
-
+            data = self._extract_weight(stamp)
         else:
             raise NotImplementedError("bad image cutout_type "
                                       "for _extract_image: '%s'" % cutout_type)
@@ -242,8 +238,40 @@ class DMMedsMaker(meds.MEDSMaker):
 
         return data
 
-    def _fill_obj_data(self, iobj, image_data):
+    def _extract_weight(self, stamp):
+        """
+        extract a weight map
 
+        Areas with NO_DATA will get zero weight.
+
+        Because the variance map includes the full poisson variance, which
+        depends on the signal, we instead extract the median of the parts of
+        the image without NO_DATA set
+        """
+        var_image  = stamp.variance.array
+        weight = var_image.copy()
+
+        weight[:,:]=0
+
+        zlogic = var_image > 0
+
+        no_data_logic = numpy.logical_not(
+            stamp.mask.array & stamp.mask.getPlaneBitMask("NO_DATA")
+        )
+        w=numpy.where(zlogic & no_data_logic)
+
+        if w[0].size > 0:
+            medvar = numpy.median(var_image[w])
+            weight[w] = 1.0/medvar
+
+        return weight
+
+    def _fill_obj_data(self, iobj, image_data):
+        """
+        fill in the data  for each object, such as 
+        wcs jacobians and info about location of the postage
+        stamps, etc.
+        """
         obj_data=self.obj_data
         for icut,idata in enumerate(image_data):
             stamp, orig_pos, seg_map = idata
