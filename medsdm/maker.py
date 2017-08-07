@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import numpy
 import esutil as eu
 
@@ -408,15 +409,34 @@ class DMMedsMaker(meds.MEDSMaker):
         # first load the defaults from the parent
         super(DMMedsMaker,self)._load_config(this_config)
 
-def test(fname='test.fits', limit=10):
+def test(tract=8766, patch="4,4", limit=10):
     from .producer import test_make_producer
+
+    pstr = patch.replace(',','')
+    outdir='output'
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    fname='test-medsdm-patch%s-tract%06d' % (pstr, tract)
+
+    if limit is not None:
+        fname = '%s-limit%d' % (fname,limit)
+
+    fname='%s.fits' % fname
+    fname=os.path.join(outdir, fname)
+    print("writing:",fname)
 
     producer_config={
         'fake_seg_radius':5,
         #'min_box_size':48,
     }
 
-    producer = test_make_producer(limit=limit, config=producer_config)
+    producer = test_make_producer(
+        tract=tract,
+        patch=patch,
+        limit=limit,
+        config=producer_config,
+    )
 
     maker = DMMedsMaker(producer)
     maker.write(fname)
