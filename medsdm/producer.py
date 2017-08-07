@@ -186,9 +186,15 @@ class LSSTProducer(object):
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
+        psfFluxFlagKey = ref.schema.fined("slot_PsfFlux_flag")
         for source in ref:
             if source.get(nChildKey) != 0:
                 # Skip parent objects, since we'll also process their children.
+                continue
+            if source.get(psfFluxFlagKey):
+                # If something went wrong with PSF photometry, it's probably
+                # something that will prevent us from adding this object to
+                # MEDS (e.g. a centroid so bad it's off the edge of the image).
                 continue
             radius = self.computeBoxRadius(source)
             epochs = self.findOverlappingEpochs(source, radius=radius)
