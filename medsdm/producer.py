@@ -186,7 +186,7 @@ class LSSTProducer(object):
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
-        psfFluxFlagKey = ref.schema.fined("slot_PsfFlux_flag")
+        psfFluxFlagKey = ref.schema.find("slot_PsfFlux_flag").key
         for source in ref:
             if source.get(nChildKey) != 0:
                 # Skip parent objects, since we'll also process their children.

@@ -421,7 +421,7 @@ def test(tract=8766, patch="4,4", limit=10):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    fname='test-medsdm-tract%06d-patch%s-tract%06d' % (tract, pstr)
+    fname='test-medsdm-tract%06d-patch%s' % (tract, pstr)
 
     if limit is not None:
         fname = '%s-limit%d' % (fname,limit)
