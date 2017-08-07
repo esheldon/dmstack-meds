@@ -9,6 +9,7 @@ import fitsio
 import lsst.afw.geom as afwGeom
 
 from .defaults import DEFAULT_MAKER_CONFIG 
+from .pbar import prange
 
 class DMMedsMaker(meds.MEDSMaker):
     """
@@ -82,8 +83,11 @@ class DMMedsMaker(meds.MEDSMaker):
             nobj=self.obj_data.size
             self.current_psf_position=0
             print("writing cutouts")
-            for iobj in xrange(nobj):
-                print("%d/%d" % (iobj+1,nobj))
+            for iobj in prange(nobj):
+            #for iobj in xrange(nobj):
+            #    if (iobj % 100) == 0:
+            #        print("%d/%d" % (iobj+1,nobj))
+
                 self._write_object_cutouts(iobj)
 
             # We filled this on the fly, write last
@@ -417,7 +421,7 @@ def test(tract=8766, patch="4,4", limit=10):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    fname='test-medsdm-patch%s-tract%06d' % (pstr, tract)
+    fname='test-medsdm-tract%06d-patch%s-tract%06d' % (tract, pstr)
 
     if limit is not None:
         fname = '%s-limit%d' % (fname,limit)
@@ -440,6 +444,7 @@ def test(tract=8766, patch="4,4", limit=10):
 
     maker = DMMedsMaker(producer)
     maker.write(fname)
+
 
 
 if __name__=="__main__":

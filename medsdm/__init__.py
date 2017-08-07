@@ -6,3 +6,4 @@ except ImportError:
     pass
 from . import producer
 from . import defaults
+from . import pbar
