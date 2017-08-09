@@ -31,12 +31,16 @@ class LSSTProducer(object):
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter, limit=None, config=None):
+    def __init__(self, butler, tract, patch, filter, limit=None, config=None,
+                 all_filters=("HSC-G", "HSC-R", "HSC-I", "HSC-Z", "HSC-Y")):
 
         self.setConfig(config)
         self.butler = butler
         self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
                                    flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+        self.meas = [self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=b,
+                                        flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+                     for b in all_filters]
         self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
         self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
         self.coaddSegMap = None
@@ -179,29 +183,38 @@ class LSSTProducer(object):
         limit=self.limit
         if limit is None:
             ref = self.ref
+            meas = self.meas
         else:
             start = len(self.ref)//2 - limit//2
             stop = start + limit
             ref = self.ref[start:stop]
+            meas = [m[start:stop] for m in self.meas]
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
-        psfFluxFlagKey = ref.schema.find("slot_PsfFlux_flag").key
-        for source in ref:
-            if source.get(nChildKey) != 0:
+        psfFluxFlagKey = meas[0].schema.find("slot_PsfFlux_flag")
+        for records in zip(ref, *meas):
+            refRecord = records[0]
+            measRecords = records[1:]
+            if refRecord.get(nChildKey) != 0:
                 # Skip parent objects, since we'll also process their children.
                 continue
-            if source.get(psfFluxFlagKey):
+            if any(m.get(psfFluxFlagKey) for m in measRecords):
+                # Skip any objects for which we don't have successfull PSF photometry
+                # in all bands; this at least almost always indicates that we didn't
+                # have data in one or more bands.
+                continue
+            if refRecord.get(psfFluxFlagKey):
                 # If something went wrong with PSF photometry, it's probably
                 # something that will prevent us from adding this object to
                 # MEDS (e.g. a centroid so bad it's off the edge of the image).
                 continue
-            radius = self.computeBoxRadius(source)
-            epochs = self.findOverlappingEpochs(source, radius=radius)
-            result.append((source.getId(),
+            radius = self.computeBoxRadius(refRecord)
+            epochs = self.findOverlappingEpochs(refRecord, radius=radius)
+            result.append((refRecord.getId(),
                            len(epochs),
                            self.getBoxWidthFromRadius(radius),
-                           source.getCoord()))
+                           refRecord.getCoord()))
 
         n = len(result)
         data = self._get_struct(n)
