@@ -192,7 +192,7 @@ class LSSTProducer(object):
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
-        psfFluxFlagKey = meas[0].schema.find("slot_PsfFlux_flag")
+        psfFluxFlagKey = meas[0].schema.find("slot_PsfFlux_flag").key
         for records in zip(ref, *meas):
             refRecord = records[0]
             measRecords = records[1:]
@@ -203,11 +203,6 @@ class LSSTProducer(object):
                 # Skip any objects for which we don't have successfull PSF photometry
                 # in all bands; this at least almost always indicates that we didn't
                 # have data in one or more bands.
-                continue
-            if refRecord.get(psfFluxFlagKey):
-                # If something went wrong with PSF photometry, it's probably
-                # something that will prevent us from adding this object to
-                # MEDS (e.g. a centroid so bad it's off the edge of the image).
                 continue
             radius = self.computeBoxRadius(refRecord)
             epochs = self.findOverlappingEpochs(refRecord, radius=radius)
