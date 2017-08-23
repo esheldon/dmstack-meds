@@ -87,8 +87,11 @@ class DMMedsMaker(meds.MEDSMaker):
             #for iobj in xrange(nobj):
             #    if (iobj % 100) == 0:
             #        print("%d/%d" % (iobj+1,nobj))
-
-                self._write_object_cutouts(iobj)
+                try:
+                    self._write_object_cutouts(iobj)
+                except:
+                    print("Failed generating cutouts for object %d with ID %d" % (iobj, self.obj_data[iobj]["id"]))
+                    raise
 
             # We filled this on the fly, write last
             self._write_object_data()
