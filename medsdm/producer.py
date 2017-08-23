@@ -38,7 +38,7 @@ class LSSTProducer(object):
         self.butler = butler
         self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
                                    flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-        self.meas = [self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=b,
+        self.forced = [self.butler.get("deepCoadd_forced_src", tract=tract, patch=patch, filter=b,
                                         flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
                      for b in all_filters]
         self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
@@ -183,23 +183,23 @@ class LSSTProducer(object):
         limit=self.limit
         if limit is None:
             ref = self.ref
-            meas = self.meas
+            forced = self.forced
         else:
             start = len(self.ref)//2 - limit//2
             stop = start + limit
             ref = self.ref[start:stop]
-            meas = [m[start:stop] for m in self.meas]
+            forced = [m[start:stop] for m in self.forced]
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
-        psfFluxFlagKey = meas[0].schema.find("slot_PsfFlux_flag").key
-        for records in zip(ref, *meas):
+        psfFluxFlagKey = forced[0].schema.find("slot_PsfFlux_flag").key
+        for records in zip(ref, *forced):
             refRecord = records[0]
-            measRecords = records[1:]
+            forcedRecords = records[1:]
             if refRecord.get(nChildKey) != 0:
                 # Skip parent objects, since we'll also process their children.
                 continue
-            if any(m.get(psfFluxFlagKey) for m in measRecords):
+            if any(m.get(psfFluxFlagKey) for m in forcedRecords):
                 # Skip any objects for which we don't have successfull PSF photometry
                 # in all bands; this at least almost always indicates that we didn't
                 # have data in one or more bands.
