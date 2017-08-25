@@ -302,12 +302,10 @@ class LSSTProducer(object):
         return stamps
 
 
-def test_make_producer(tract=8766, patch="4,4", limit=10, config=None):
+def test_make_producer(filter, tract=8766, patch="4,4", limit=10, config=None):
     #butler = dafPersist.Butler("/datasets/hsc/repo/rerun/private/hchiang2/RC/DM-10129")
     #butler = dafPersist.Butler("/project/hsc_rc/w_2017_26/DM-11165")
     butler = dafPersist.Butler("/datasets/hsc/repo/rerun/RC/w_2017_30/DM-11185")
-
-    filter = "HSC-I"
 
     producer = LSSTProducer(
         butler,

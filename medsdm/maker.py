@@ -413,7 +413,7 @@ class DMMedsMaker(meds.MEDSMaker):
         # first load the defaults from the parent
         super(DMMedsMaker,self)._load_config(this_config)
 
-def test(tract=8766, patch="4,4", limit=10):
+def test(filter="HSC-I",tract=8766, patch="4,4", limit=10):
     from .producer import test_make_producer
 
     pstr = patch.replace(',','')
@@ -421,7 +421,8 @@ def test(tract=8766, patch="4,4", limit=10):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    fname='test-medsdm-tract%06d-patch%s' % (tract, pstr)
+    fstr=filter[4:4+1].lower()
+    fname='test-medsdm-%s-tract%06d-patch%s' % (fstr,tract, pstr)
 
     if limit is not None:
         fname = '%s-limit%d' % (fname,limit)
@@ -436,6 +437,7 @@ def test(tract=8766, patch="4,4", limit=10):
     }
 
     producer = test_make_producer(
+        filter,
         tract=tract,
         patch=patch,
         limit=limit,
