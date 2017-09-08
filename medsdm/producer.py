@@ -17,6 +17,8 @@ import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
 import lsst.afw.geom.ellipses as afwEllipses
 
+from lsst.meas.base import NoiseReplacer
+
 from .defaults import DEFAULT_PRODUCER_CONFIG 
 
 class LSSTProducer(object):
@@ -48,6 +50,19 @@ class LSSTProducer(object):
 
         self.limit=limit
 
+        if self.config['deblend_coadd']:
+            # Use the numeric ID of the coadd to seed the RNG used to replace deblended
+            # neighbors with noise: this is both deterministic and not the same for every
+            # image.
+            exposureId = self.butler.get("deepCoaddId", tract=tract, patch=patch, filter=filter)
+            meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
+            footprints = {r.getId(): (r.getParent(), r.getFootprint()) for r in meas}
+            self.noiseReplacer = NoiseReplacer(
+                config=NoiseReplacer.ConfigClass(),
+                exposure=self.coadd,
+                footprints=footprints,
+                exposureId=exposureId,
+            )
         self.loadImages()
 
     def setConfig(self, input_config):
@@ -283,9 +298,15 @@ class LSSTProducer(object):
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
             if ccdRecord is None:
                 # this is a coadd stamp
-                fullStamp = self.getPaddedSubImage(self.coadd, bbox=bbox)
-                position = self.coadd.getWcs().skyToPixel(source.getCoord())
-                segmap = self.getPaddedSubImage(self.coaddSegMap, bbox=bbox)
+                try:
+                    if self.config['deblend_coadd']:
+                        self.noiseReplacer.insertSource(obj_data['id'])
+                    fullStamp = self.getPaddedSubImage(self.coadd, bbox=bbox)
+                    position = self.coadd.getWcs().skyToPixel(source.getCoord())
+                    segmap = self.getPaddedSubImage(self.coaddSegMap, bbox=bbox)
+                finally:
+                    if self.config['deblend_coadd']:
+                        self.noiseReplacer.removeSource(obj_data['id'])
             else:
                 calexp = self.calexps[ccdRecord.getId()]
                 calexpFluxMag0 = calexp.getCalib().getFluxMag0()[0]

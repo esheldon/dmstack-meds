@@ -35,6 +35,7 @@ DEFAULT_PRODUCER_CONFIG = {
     'radius_factor':5.0,
     'include_coadd':True,
     'include_epochs':True,
+    'deblend_coadd':False,
 }
 
 
