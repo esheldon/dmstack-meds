@@ -136,22 +136,19 @@ class LSSTProducer(object):
         Returns a list of tuples of `(box, ccd)`, where `box` is
         the postage-stamp bounding box in pixel coordinates and `ccd`
         is a an `ExposureRecord` containing CCD metadata.
-
-        TODO: at present this skips images for which the postage stamp
-        lies on the image boundary, because we don't yet have code to
-        pad them.
         """
         result = []
         if self.config['include_coadd']:
             sourceBox = self.projectBox(source, self.coadd.getWcs(), radius)
             imageBox = self.coadd.getBBox()
             result.append((None, sourceBox))
-        for ccd in self.ccds:
-            sourceBox = self.projectBox(source, ccd.getWcs(), radius)
-            imageBox = ccd.getBBox()
-            if not imageBox.overlaps(sourceBox):
-                continue
-            result.append((ccd, sourceBox))
+        if self.config['include_epochs']:
+            for ccd in self.ccds:
+                sourceBox = self.projectBox(source, ccd.getWcs(), radius)
+                imageBox = ccd.getBBox()
+                if not imageBox.overlaps(sourceBox):
+                    continue
+                result.append((ccd, sourceBox))
         return result
 
     def _get_struct(self, n):
@@ -233,6 +230,8 @@ class LSSTProducer(object):
         return dict(visit=ccdRecord["visit"], ccd=ccdRecord["ccd"])
 
     def loadImages(self):
+        if not self.config['include_epochs']:
+            return
         self.calexps = {}
         for ccdRecord in self.ccds:
             self.calexps[ccdRecord.getId()] = self.butler.get("calexp", self.getDataId(ccdRecord))
@@ -319,7 +318,7 @@ def test_make_producer(filter, tract=8766, patch="4,4", limit=10, config=None):
 
     return producer
 
-def test(filter, tract=8766, patch="4,4", limit=10, config=None):
+def test(filter, tract=8766, patch="4,4", limit=10, config=None, stampnum=1):
     """
     test making a producer
     """
@@ -330,7 +329,7 @@ def test(filter, tract=8766, patch="4,4", limit=10, config=None):
 
     index=1
     stamps = producer.getStamps(cat[index])
-    stamp, orig_pos, seg_map = stamps[1]
+    stamp, orig_pos, seg_map = stamps[stampnum]
 
 
     flag_dict = stamp.mask.getMaskPlaneDict()
