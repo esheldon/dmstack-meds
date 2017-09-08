@@ -9,6 +9,7 @@ BUGS found in dmstack
 
 from __future__ import print_function
 import numpy
+from pprint import pprint
 
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
@@ -318,12 +319,12 @@ def test_make_producer(filter, tract=8766, patch="4,4", limit=10, config=None):
 
     return producer
 
-def test():
+def test(filter, tract=8766, patch="4,4", limit=10, config=None):
     """
     test making a producer
     """
 
-    producer = test_make_producer(limit=10)
+    producer = test_make_producer(filter, tract=tract, patch=patch, limit=limit, config=config)
 
     cat = producer.getCatalog()
 
@@ -335,10 +336,16 @@ def test():
     flag_dict = stamp.mask.getMaskPlaneDict()
     flags_to_ignore = ['DETECTED','DETECTED_NEGATIVE']
     flags_to_check = 0
-    for key in flag_dict:
-        if key not in flags_to_ignore:
-            flags_to_check |= stamp.mask.getPlaneBitMask(key)
 
+    fdict={}
+    for key in flag_dict:
+        val = stamp.mask.getPlaneBitMask(key)
+        fdict[key] = val
+        if key not in flags_to_ignore:
+            flags_to_check |= val
+
+
+    pprint(fdict)
     print("flags to check:",flags_to_check)
     ncutout = len(stamps)
     
