@@ -34,6 +34,7 @@ DEFAULT_PRODUCER_CONFIG = {
     'max_box_size':256,
     'radius_factor':5.0,
     'include_coadd':True,
+    'include_epochs':True,
 }
 
 
