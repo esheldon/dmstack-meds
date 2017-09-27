@@ -39,12 +39,25 @@ class LSSTProducer(object):
 
         self.setConfig(config)
         self.butler = butler
-        self.ref = self.butler.get("deepCoadd_ref", tract=tract, patch=patch,
-                                   flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-        self.forced = [self.butler.get("deepCoadd_forced_src", tract=tract, patch=patch, filter=b,
-                                        flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-                     for b in all_filters]
-        self.coadd = self.butler.get("deepCoadd_calexp", tract=tract, patch=patch, filter=filter)
+        self.coadd_image_id = butler.get(
+            "deepCoaddId",
+            tract=tract, patch=patch,
+            filter=filter,
+        )
+        self.ref = butler.get(
+            "deepCoadd_ref",
+            tract=tract, patch=patch,
+            flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
+        )
+        self.forced = [butler.get("deepCoadd_forced_src", tract=tract, patch=patch, filter=b,
+                                  flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+                       for b in all_filters]
+        self.coadd = butler.get(
+            "deepCoadd_calexp",
+            tract=tract,
+            patch=patch,
+            filter=filter,
+        )
         self.ccds = self.coadd.getInfo().getCoaddInputs().ccds
         self.coaddSegMap = None
 
@@ -54,14 +67,13 @@ class LSSTProducer(object):
             # Use the numeric ID of the coadd to seed the RNG used to replace deblended
             # neighbors with noise: this is both deterministic and not the same for every
             # image.
-            exposureId = self.butler.get("deepCoaddId", tract=tract, patch=patch, filter=filter)
             meas = self.butler.get("deepCoadd_meas", tract=tract, patch=patch, filter=filter)
             footprints = {r.getId(): (r.getParent(), r.getFootprint()) for r in meas}
             self.noiseReplacer = NoiseReplacer(
                 config=NoiseReplacer.ConfigClass(),
                 exposure=self.coadd,
                 footprints=footprints,
-                exposureId=exposureId,
+                exposureId=self.coadd_image_id,
             )
         self.loadImages()
 
@@ -296,14 +308,17 @@ class LSSTProducer(object):
         radius = self.getBoxRadiusFromWidth(width)
         coaddFluxMag0 = self.coadd.getCalib().getFluxMag0()[0]
         for ccdRecord, bbox in self.findOverlappingEpochs(source, radius=radius):
+
+            r={}
             if ccdRecord is None:
                 # this is a coadd stamp
                 try:
                     if self.config['deblend_coadd']:
                         self.noiseReplacer.insertSource(obj_data['id'])
-                    fullStamp = self.getPaddedSubImage(self.coadd, bbox=bbox)
-                    position = self.coadd.getWcs().skyToPixel(source.getCoord())
-                    segmap = self.getPaddedSubImage(self.coaddSegMap, bbox=bbox)
+                    r['stamp']     = self.getPaddedSubImage(self.coadd, bbox=bbox)
+                    r['image_pos'] = self.coadd.getWcs().skyToPixel(source.getCoord())
+                    r['seg_map']    = self.getPaddedSubImage(self.coaddSegMap, bbox=bbox)
+                    r['image_id']  = self.coadd_image_id
                 finally:
                     if self.config['deblend_coadd']:
                         self.noiseReplacer.removeSource(obj_data['id'])
@@ -317,9 +332,16 @@ class LSSTProducer(object):
                 # scales both the image and variance image
                 fullStamp.maskedImage *= fluxScaling
 
-                position = ccdRecord.getWcs().skyToPixel(source.getCoord())
-                segmap = None
-            stamps.append((fullStamp, position, segmap))
+                r['stamp']     = fullStamp
+                r['image_pos'] = ccdRecord.getWcs().skyToPixel(source.getCoord())
+                r['seg_map']    = None
+                r['image_id']  = ccdRecord['id']
+
+                # extra fields for single-epoch
+                r['visit']     = ccdRecord['visit']
+                r['ccd']       = ccdRecord['ccd']
+
+            stamps.append(r)
         return stamps
 
 
@@ -350,7 +372,10 @@ def test(filter, tract=8766, patch="4,4", limit=10, config=None, stampnum=1):
 
     index=1
     stamps = producer.getStamps(cat[index])
-    stamp, orig_pos, seg_map = stamps[stampnum]
+    sdata = stamp, orig_pos, seg_map = stamps[stampnum]
+    stamp=sdata['stamp']
+    orig_pos = sdata['image_pos']
+    seg_map = sdata['seg_map']
 
 
     flag_dict = stamp.mask.getMaskPlaneDict()
