@@ -37,11 +37,12 @@ class DMMedsMaker(meds.MEDSMaker):
         obj_data = self.producer.getCatalog()
         self._set_obj_data(obj_data)
 
+        self._begin_image_info()
         # fake the image info for now
-        self.image_info=meds.util.get_image_info_struct(
-            10,
-            10,
-        )
+        #self.image_info=meds.util.get_image_info_struct(
+        #    10,
+        #    10,
+        #)
 
     def write(self, filename):
         """
@@ -100,6 +101,14 @@ class DMMedsMaker(meds.MEDSMaker):
 
         print('    output is in:',filename)
 
+    def _write_image_info(self):
+        """
+        combine the info structs and write to disk
+        """
+
+        self.image_info = numpy.hstack(self._image_info_list)
+        super(DMMedsMaker,self)._write_image_info()
+
     def _write_object_cutouts(self, iobj):
         """
         write the cutouts for the specified type
@@ -111,7 +120,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
         image_data = self.producer.getStamps(obj_data[iobj])
 
-        ncut =len(image_data)
+        ncut = len(image_data)
         nexp = obj_data['ncutout'][iobj]
         if ncut != nexp:
             raise ValueError("expected %d cutouts, got %d" % (nexp,ncut))
@@ -128,11 +137,18 @@ class DMMedsMaker(meds.MEDSMaker):
             cutout_hdu = self._get_cutout_hdu(cutout_type)
 
             for icut, idata in enumerate(image_data):
-                stamp, orig_pos, seg_map = idata
+                stamp = idata['stamp']
+                seg_map = idata['seg_map']
 
                 if stamp is None:
                     print("    stamp",icut,"is None")
                     continue
+
+                if idata['image_id'] not in self._idlist:
+                    self._append_image_info(idata)
+
+                obj_data['file_id'][iobj,icut] = \
+                        self._idlist.index(idata['image_id'])
 
                 if cutout_type == 'seg':
                     if seg_map is None and icut != 0:
@@ -146,7 +162,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
                 elif cutout_type=='psf':
                     # psfs are variable in size
-                    im_data = self._extract_psf_image(stamp, orig_pos)
+                    im_data = self._extract_psf_image(stamp, idata['image_pos'])
 
                     obj_data['psf_box_size'][iobj,icut] = im_data.shape[0]
                     obj_data['psf_start_row'][iobj,icut] = self.current_psf_position
@@ -282,9 +298,11 @@ class DMMedsMaker(meds.MEDSMaker):
         """
         obj_data=self.obj_data
         for icut,idata in enumerate(image_data):
-            stamp, orig_pos, seg_map = idata
+            stamp = idata['stamp']
             if stamp is None:
                 continue
+
+            orig_pos = idata['image_pos']
 
             wcs = stamp.getWcs().linearizePixelToSky(
                 orig_pos,
@@ -347,6 +365,40 @@ class DMMedsMaker(meds.MEDSMaker):
         extra_fields=[('ncutout','i4')]
         return meds.util.get_meds_input_struct(1, extra_fields=extra_fields)
 
+    def _append_image_info(self, idata):
+        info = self._get_empty_image_info()
+        info['image_id'] = idata['image_id']
+        if 'visit' in idata:
+            info['visit'] = idata['visit']
+            info['ccd']   = idata['ccd']
+        else:
+            info['visit'] = -9999
+            info['ccd']   = -9999
+
+        self._image_info_list.append(info)
+        self._idlist.append(idata['image_id'])
+
+
+    def _begin_image_info(self):
+        self._idlist=[]
+        self._image_info_list=[]
+
+        cat = self.producer.getCatalog()
+        stamps = self.producer.getStamps(cat[0])
+        coadd_idata = stamps[0]
+
+        self._append_image_info(coadd_idata)
+
+
+    def _get_empty_image_info(self):
+        return meds.util.get_image_info_struct(
+            1,
+            10,
+            extra_dtype=[('visit','i8'),('ccd','i2')],
+        )
+
+
+
     def _set_psf_layout(self):
         """
         set the box sizes and start row for each psf image
@@ -362,9 +414,9 @@ class DMMedsMaker(meds.MEDSMaker):
         cat = producer.getCatalog()
         stamps = producer.getStamps(cat[0])
 
-        coadd_stamp, orig_pos, seg_map = stamps[0]
-        psfobj=coadd_stamp.getPsf()
-        psfim = psfobj.computeKernelImage(orig_pos).array
+        sdata = stamps[0]
+        psfobj=sdata['stamp'].getPsf()
+        psfim = psfobj.computeKernelImage(sdata['image_pos']).array
 
         # some padding
         psf_size = max(psfim.shape)+2
