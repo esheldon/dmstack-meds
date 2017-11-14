@@ -1,4 +1,9 @@
 from __future__ import print_function
+try:
+    xrange
+except:
+    xrange=range
+
 import os
 import numpy
 import esutil as eu
@@ -85,9 +90,6 @@ class DMMedsMaker(meds.MEDSMaker):
             self.current_psf_position=0
             print("writing cutouts")
             for iobj in prange(nobj):
-            #for iobj in xrange(nobj):
-            #    if (iobj % 100) == 0:
-            #        print("%d/%d" % (iobj+1,nobj))
                 try:
                     self._write_object_cutouts(iobj)
                 except:
