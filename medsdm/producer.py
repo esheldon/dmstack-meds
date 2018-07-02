@@ -10,6 +10,7 @@ BUGS found in dmstack
 from __future__ import print_function
 import numpy
 from pprint import pprint
+import types
 
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
@@ -39,11 +40,13 @@ class LSSTProducer(object):
 
         self.setConfig(config)
         self.butler = butler
-        self.coadd_image_id = butler.get(
-            "deepCoaddId",
-            tract=tract, patch=patch,
-            filter=filter,
-        )
+        dataId = {'tract': tract, 'patch': patch, 'filter': filter}
+
+        # NOTE: this is a fix to work under the main LSST obs_lsstSim,
+        # this is fixed in the DESC fork and the butler can directly be used
+        self.coadd_image_id = self._computeCoaddExposureId(self, dataId, True)
+        #self.coadd_image_id = butler.get("deepCoaddId", dataId)
+        
         self.ref = butler.get(
             "deepCoadd_ref",
             tract=tract, patch=patch,
@@ -189,6 +192,45 @@ class LSSTProducer(object):
         ]
 
         return numpy.zeros(n, dtype=dt)
+
+    def _computeCoaddExposureId(self, dataId, singleFilter):
+        """Compute the 64-bit (long) identifier for a coadd.
+        @param dataId (dict)       Data identifier with tract and patch.
+        @param singleFilter (bool) True means the desired ID is for a single-
+                                   filter coadd, in which case dataId
+                                   must contain filter.
+
+        NOTE: This function is taken from
+        LSSTDESC/obs_lsstSim/python/lsst/obs/lsstSim/lsstSimMapper.py
+        Using the Butler would be preferred, but would require the DESC fork
+        of obs_lsstSim.
+        """
+        # taken from hscMapper.py    |
+        # The number of bits allocated for fields in object IDs, appropriate for
+        # the default-configured Rings skymap.
+        #
+        # This shouldn't be the mapper's job at all; see #2797.
+        LsstSimMapper = types.SimpleNamespace()
+        LsstSimMapper._nbit_tract = 16
+        LsstSimMapper._nbit_patch = 5
+        LsstSimMapper._nbit_filter = 6
+        LsstSimMapper._nbit_id = 64 - (LsstSimMapper._nbit_tract +
+                                       2 * LsstSimMapper._nbit_patch +
+                                       LsstSimMapper._nbit_filter)
+
+        tract = int(dataId['tract'])
+        if tract < 0 or tract >= 2**LsstSimMapper._nbit_tract:
+            raise RuntimeError('tract not in range [0,%d)' % (2**LsstSimMapper._nbit_tract))
+        patchX, patchY = [int(patch) for patch in dataId['patch'].split(',')]
+        for p in (patchX, patchY):
+            if p < 0 or p >= 2**LsstSimMapper._nbit_patch:
+                raise RuntimeError('patch component not in range [0, %d)' %
+                                   2**LsstSimMapper._nbit_patch)
+        oid = (((tract << LsstSimMapper._nbit_patch) + patchX) << LsstSimMapper._nbit_patch) + patchY
+        if singleFilter:
+            return (oid << LsstSimMapper._nbit_filter) + \
+                afwImageUtils.Filter(dataId['filter']).getId()
+        return oid
 
     def getCatalog(self):
         if not hasattr(self,'catalog'):
