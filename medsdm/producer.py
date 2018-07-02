@@ -44,9 +44,9 @@ class LSSTProducer(object):
 
         # NOTE: this is a fix to work under the main LSST obs_lsstSim,
         # this is fixed in the DESC fork and the butler can directly be used
-        self.coadd_image_id = self._computeCoaddExposureId(self, dataId, True)
+        self.coadd_image_id = self._computeCoaddExposureId(dataId, True)
         #self.coadd_image_id = butler.get("deepCoaddId", dataId)
-        
+
         self.ref = butler.get(
             "deepCoadd_ref",
             tract=tract, patch=patch,
