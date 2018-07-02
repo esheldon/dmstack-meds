@@ -15,6 +15,7 @@ import types
 import lsst.daf.persistence as dafPersist
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+import lsst.afw.image.utils as afwImageUtils
 import lsst.afw.table as afwTable
 import lsst.afw.geom.ellipses as afwEllipses
 
