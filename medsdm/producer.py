@@ -19,7 +19,7 @@ import lsst.afw.geom.ellipses as afwEllipses
 
 from lsst.meas.base import NoiseReplacer
 
-from .defaults import DEFAULT_PRODUCER_CONFIG 
+from .defaults import DEFAULT_PRODUCER_CONFIG
 
 class LSSTProducer(object):
     """
@@ -217,14 +217,14 @@ class LSSTProducer(object):
 
         result = []
         nChildKey = ref.schema.find("deblend_nChild").key
-        psfFluxFlagKey = forced[0].schema.find("slot_PsfFlux_flag").key
+        psfFluxFlagKey = forced[0].schema.find("base_PsfFlux_flag").key
         for records in zip(ref, *forced):
             refRecord = records[0]
             forcedRecords = records[1:]
             if refRecord.get(nChildKey) != 0:
                 # Skip parent objects, since we'll also process their children.
                 continue
-            if any(m.get(psfFluxFlagKey) for m in forcedRecords):
+            if any([m.get(psfFluxFlagKey) for m in forcedRecords]):
                 # Skip any objects for which we don't have successfull PSF photometry
                 # in all bands; this at least almost always indicates that we didn't
                 # have data in one or more bands.
@@ -251,10 +251,17 @@ class LSSTProducer(object):
     def getDataId(self, ccdRecord):
         """Make a calexp data ID from a CCD ExposureRecord.
 
-        Must be overridden for cameras whose data IDs have something other
-        than ("visit", "ccd") as keys.
+        Must be overridden for cameras other than LSST and HSC
         """
-        return dict(visit=ccdRecord["visit"], ccd=ccdRecord["ccd"])
+        if self.config['camera'] == 'LSST':
+            ccd = str(ccdRecord["ccd"])
+            raft = "%s,%s"%(ccd[0],ccd[1])
+            ccd = "%s,%s"%(ccd[2],ccd[3])
+            return dict(visit=ccdRecord["visit"], raft=raft, sensor=ccd, filter=ccdRecord["filter"])
+        elif self.config['camera'] == 'HSC':
+            return dict(visit=ccdRecord["visit"], ccd=ccdRecord['ccd'], filter=ccdRecord["filter"])
+        else:
+            raise NotImplementedError("Unknown camera type")
 
     def loadImages(self):
         if not self.config['include_epochs']:
@@ -393,7 +400,7 @@ def test(filter, tract=8766, patch="4,4", limit=10, config=None, stampnum=1):
     pprint(fdict)
     print("flags to check:",flags_to_check)
     ncutout = len(stamps)
-    
+
     numbers = numpy.arange(cat.size)
 
     # image
@@ -439,4 +446,3 @@ def test(filter, tract=8766, patch="4,4", limit=10, config=None, stampnum=1):
     file_id=-9999
 
     return producer
- 
