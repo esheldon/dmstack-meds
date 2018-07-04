@@ -542,9 +542,9 @@ if __name__=="__main__":
                             tract=args.tract,
                             patch=args.patch,
                             filter=args.filter,
-                            config= args.config['producer'] if args.config is not None)
+                            config= args.config['producer'] if args.config is not None else None)
 
     # Create maker instance, with default configuration for now
     maker = DMMedsMaker(producer,
-                        config= args.config['maker'] if args.config is not None)
+                        config= args.config['maker'] if args.config is not None else None)
     maker.write(fname)
