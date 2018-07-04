@@ -13,7 +13,7 @@ import fitsio
 
 import lsst.afw.geom as afwGeom
 
-from .defaults import DEFAULT_MAKER_CONFIG 
+from .defaults import DEFAULT_MAKER_CONFIG
 from .pbar import prange
 
 class DMMedsMaker(meds.MEDSMaker):
@@ -59,7 +59,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
     def _build_meds_layout(self):
         """
-        build the layout for the FITS file on disk 
+        build the layout for the FITS file on disk
         """
 
         # box sizes are even
@@ -294,7 +294,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
     def _fill_obj_data(self, iobj, image_data):
         """
-        fill in the data  for each object, such as 
+        fill in the data  for each object, such as
         wcs jacobians and info about location of the postage
         stamps, etc.
         """
@@ -440,7 +440,7 @@ class DMMedsMaker(meds.MEDSMaker):
 
 
         self.total_psf_pixels = total_psf_pixels
- 
+
     '''
     def _get_psf_dtype(self, nmax):
         """
@@ -504,7 +504,39 @@ def test(filter="HSC-I",tract=8766, patch="4,4", limit=10):
     maker = DMMedsMaker(producer)
     maker.write(fname)
 
-
-
 if __name__=="__main__":
-    test()
+    from argparse import ArgumentParser, RawTextHelpFormatter
+    import lsst.daf.persistence as dafPersist
+    from .producer import test_make_producer
+
+    usage = """
+    Extracts MEDS file cutouts from the DM coadds and individual visits for a
+    given (tract, patch).
+    """
+    parser = ArgumentParser(description=usage,
+                         formatter_class=RawTextHelpFormatter)
+    parser.add_argument('--prefix', type=str, default='./medsdm',
+                        help='Output prefix to use for the meds files.')
+    parser.add_argument('repo', type=str,
+                     help='Filepath to LSST DM Stack Butler repository.')
+    parser.add_argument('tract', type=int,
+                     help='Skymap tract to process.')
+    parser.add_argument('patch', type=str,
+                     help='patch to process (e.g. 0,1).')
+    parser.add_argument('filter', type=str,
+                     help='Filter to process (e.g. i or HSC-I).')
+    args = parser.parse_args(sys.argv[1:])
+
+    fstr=filter[4:4+1].lower()
+    fname=args.prefix+'-%s-tract%06d-patch%s' % (fstr, args.tract, args.patch)
+
+    # Create producer using default configuration
+    butler =  dafPersist.Butler(args.repo)
+    producer = LSSTProducer(butler,
+                            tract=args.tract,
+                            patch=args.patch,
+                            filter=args.filter)
+
+    # Create maker instance, with default configuration for now
+    maker = DMMedsMaker(producer)
+    maker.write(fname)
