@@ -505,6 +505,7 @@ def test(filter="HSC-I",tract=8766, patch="4,4", limit=10):
     maker.write(fname)
 
 if __name__=="__main__":
+    import sys
     from argparse import ArgumentParser, RawTextHelpFormatter
     import lsst.daf.persistence as dafPersist
     from .producer import test_make_producer
