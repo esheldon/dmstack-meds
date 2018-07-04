@@ -6,7 +6,7 @@ maker:
 
 producer:
     camera: LSST
-    all_filters: ['g', 'r', 'i', 'z', 'y']
+    all_filters: ['r', 'i']
     fake_seg_radius: 5
     min_box_size: 32
     max_box_size: 256

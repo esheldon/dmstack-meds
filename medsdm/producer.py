@@ -49,7 +49,7 @@ class LSSTProducer(object):
 
         # Filter map to handle HSC filters
         if self.config['camera'] == 'LSST':
-            filter_map = {b:b for b in all_filters}
+            filter_map = {b:b for b in self.config['all_filters']}
         elif self.config['camera'] == 'HSC':
             filter_map = {'u': 'HSC-U', 'g': 'HSC-G', 'r': 'HSC-R', 'i': 'HSC-I',
                           'z': 'HSC-Z', 'y': 'HSC-Y'}
