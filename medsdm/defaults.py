@@ -10,7 +10,7 @@ object
 DEFAULT_MAKER_CONFIG = {
     # need this for lsst
     #'refband':'i',
-    
+
     # types of cutout images to make. Note psf is
     # automatically made
     'cutout_types': ['image','weight','seg','bmask'],
@@ -28,7 +28,9 @@ DEFAULT_MAKER_CONFIG = {
     'variable_psf_box_size': True,
 }
 
+# Camera options are: LSST, HSC
 DEFAULT_PRODUCER_CONFIG = {
+    'camera':'LSST',
     'fake_seg_radius':5,
     'min_box_size':32,
     'max_box_size':256,
@@ -37,5 +39,3 @@ DEFAULT_PRODUCER_CONFIG = {
     'include_epochs':True,
     'deblend_coadd':False,
 }
-
-
