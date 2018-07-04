@@ -508,7 +508,7 @@ if __name__=="__main__":
     import sys
     from argparse import ArgumentParser, RawTextHelpFormatter
     import lsst.daf.persistence as dafPersist
-    from .producer import test_make_producer
+    from .producer import LSSTProducer
 
     usage = """
     Extracts MEDS file cutouts from the DM coadds and individual visits for a
