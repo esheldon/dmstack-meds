@@ -525,11 +525,10 @@ if __name__=="__main__":
     parser.add_argument('patch', type=str,
                      help='patch to process (e.g. 0,1).')
     parser.add_argument('filter', type=str,
-                     help='Filter to process (e.g. i or HSC-I).')
+                     help='Filter to process (e.g. i).')
     args = parser.parse_args(sys.argv[1:])
 
-    fstr=filter[4:4+1].lower()
-    fname=args.prefix+'-%s-tract%06d-patch%s' % (fstr, args.tract, args.patch)
+    fname=args.prefix+'-%s-tract%06d-patch%s' % (args.filter, args.tract, args.patch)
 
     # Create producer using default configuration
     butler =  dafPersist.Butler(args.repo)
