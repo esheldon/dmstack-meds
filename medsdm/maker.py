@@ -506,6 +506,7 @@ def test(filter="HSC-I",tract=8766, patch="4,4", limit=10):
 
 if __name__=="__main__":
     import sys
+    import yaml
     from argparse import ArgumentParser, RawTextHelpFormatter
     import lsst.daf.persistence as dafPersist
     from .producer import LSSTProducer
@@ -534,7 +535,14 @@ if __name__=="__main__":
     fname=args.prefix+'-%s-tract%06d-patch%s' % (args.filter, args.tract, args.patch)
 
     # Extracts configuration if different from default
-
+    if args.config is not None:
+        with open(args.config, 'r') as ymlfile:
+            config = yaml.load(ymlfile)
+        config_producer = config['producer']
+        config_maker = config['maker']
+    else:
+        config_producer = None
+        config_maker =  None
 
     # Create producer using default configuration
     butler =  dafPersist.Butler(args.repo)
