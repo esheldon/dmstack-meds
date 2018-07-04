@@ -31,6 +31,7 @@ DEFAULT_MAKER_CONFIG = {
 # Camera options are: LSST, HSC
 DEFAULT_PRODUCER_CONFIG = {
     'camera':'LSST',
+    'all_filters': ("g", "r", "i", "z", "y"),
     'fake_seg_radius':5,
     'min_box_size':32,
     'max_box_size':256,

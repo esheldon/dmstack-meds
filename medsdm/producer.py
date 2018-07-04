@@ -36,8 +36,7 @@ class LSSTProducer(object):
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter, limit=None, config=None,
-                 all_filters=("g", "r", "i", "z", "y")):
+    def __init__(self, butler, tract, patch, filter, limit=None, config=None):
 
         self.setConfig(config)
         self.butler = butler
@@ -65,7 +64,7 @@ class LSSTProducer(object):
         self.forced = [butler.get("deepCoadd_forced_src", tract=tract, patch=patch,
                                   filter=filter_map[b],
                                   flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-                       for b in all_filters]
+                       for b in self.config['all_filters']]
         self.coadd = butler.get(
             "deepCoadd_calexp",
             tract=tract,

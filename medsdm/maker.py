@@ -518,6 +518,8 @@ if __name__=="__main__":
                          formatter_class=RawTextHelpFormatter)
     parser.add_argument('--prefix', type=str, default='./medsdm',
                         help='Output prefix to use for the meds files.')
+    parser.add_argument('--config', type=str, default=None,
+                        help='Yaml configuration file for medsdm')
     parser.add_argument('repo', type=str,
                      help='Filepath to LSST DM Stack Butler repository.')
     parser.add_argument('tract', type=int,
@@ -528,15 +530,21 @@ if __name__=="__main__":
                      help='Filter to process (e.g. i).')
     args = parser.parse_args(sys.argv[1:])
 
+    # Extracts output filename
     fname=args.prefix+'-%s-tract%06d-patch%s' % (args.filter, args.tract, args.patch)
+
+    # Extracts configuration if different from default
+
 
     # Create producer using default configuration
     butler =  dafPersist.Butler(args.repo)
     producer = LSSTProducer(butler,
                             tract=args.tract,
                             patch=args.patch,
-                            filter=args.filter)
+                            filter=args.filter,
+                            config= args.config['producer'] if args.config is not None)
 
     # Create maker instance, with default configuration for now
-    maker = DMMedsMaker(producer)
+    maker = DMMedsMaker(producer,
+                        config= args.config['maker'] if args.config is not None)
     maker.write(fname)
