@@ -532,7 +532,8 @@ if __name__=="__main__":
     args = parser.parse_args(sys.argv[1:])
 
     # Extracts output filename
-    fname=args.prefix+'-%s-tract%06d-patch%s' % (args.filter, args.tract, args.patch)
+    fname=args.prefix+'-%s-tract%06d-patch%s' % (args.filter, args.tract,
+                        args.patch.replace(',',''))
 
     # Extracts configuration if different from default
     if args.config is not None:
