@@ -36,8 +36,7 @@ class LSSTProducer(object):
        we need about that postage stamp.
     """
 
-    def __init__(self, butler, tract, patch, filter, limit=None, config=None,
-                 all_filters=("HSC-G", "HSC-R", "HSC-I", "HSC-Z", "HSC-Y")):
+    def __init__(self, butler, tract, patch, filter, limit=None, config=None):
 
         self.setConfig(config)
         self.butler = butler
@@ -48,14 +47,24 @@ class LSSTProducer(object):
         self.coadd_image_id = self._computeCoaddExposureId(dataId, True)
         #self.coadd_image_id = butler.get("deepCoaddId", dataId)
 
+        # Filter map to handle HSC filters
+        if self.config['camera'] == 'LSST':
+            filter_map = {b:b for b in self.config['all_filters']}
+        elif self.config['camera'] == 'HSC':
+            filter_map = {'u': 'HSC-U', 'g': 'HSC-G', 'r': 'HSC-R', 'i': 'HSC-I',
+                          'z': 'HSC-Z', 'y': 'HSC-Y'}
+        else:
+            raise NotImplementedError("Unknown camera type")
+
         self.ref = butler.get(
             "deepCoadd_ref",
             tract=tract, patch=patch,
             flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
         )
-        self.forced = [butler.get("deepCoadd_forced_src", tract=tract, patch=patch, filter=b,
+        self.forced = [butler.get("deepCoadd_forced_src", tract=tract, patch=patch,
+                                  filter=filter_map[b],
                                   flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-                       for b in all_filters]
+                       for b in self.config['all_filters']]
         self.coadd = butler.get(
             "deepCoadd_calexp",
             tract=tract,

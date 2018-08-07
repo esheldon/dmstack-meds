@@ -1,0 +1,16 @@
+maker:
+    cutout_types: ['image', 'weight', 'seg', 'bmask']
+    fake_se_seg: True
+    fpack_dims: [10240, 1]
+    variable_psf_box_size: True
+
+producer:
+    camera: LSST
+    all_filters: ['r', 'i']
+    fake_seg_radius: 5
+    min_box_size: 32
+    max_box_size: 256
+    radius_factor: 5.0
+    include_coadd: True
+    include_epochs: True
+    deblend_coadd: False
